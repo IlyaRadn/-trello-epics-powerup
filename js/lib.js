@@ -37,8 +37,8 @@
     DONE_LIST_RE: DONE_LIST_RE,
     ICON_PALETTE: ICON_PALETTE,
 
-    // Trello API key — filled in at S5 from the Power-Up admin (public value).
-    APP_KEY: '',
+    // Trello API key from the Power-Up admin (public value, embedded in client).
+    APP_KEY: 'ffdbea7aa839ec372b926441255ca3d3',
     APP_NAME: 'Duck Epics',
 
     // ---------- REST helpers (need user authorization, see S5) ----------
