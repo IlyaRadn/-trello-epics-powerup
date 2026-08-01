@@ -45,7 +45,9 @@
     // Create a new card via REST and link it under `parentId` as a Sub-task.
     // Resolves with the new card id. Rejects with Error('auth') if not authorized.
     createSubtask: function (t, opts) {
-      return t.getRestApi().getToken().then(function (token) {
+      var tokenP;
+      try { tokenP = t.getRestApi().getToken(); } catch (e) { return Promise.reject(new Error('auth')); }
+      return Promise.resolve(tokenP).then(function (token) {
         if (!token || !Epic.APP_KEY) throw new Error('auth');
         var qs = 'idList=' + encodeURIComponent(opts.idList) +
           '&name=' + encodeURIComponent(opts.name) +
@@ -62,7 +64,9 @@
     // Fetch archived (closed) cards for the board via REST, as id->{idList,name,closed}.
     // Used by the parent section/badges to include archived sub-tasks (S5+).
     fetchArchived: function (t, boardId) {
-      return t.getRestApi().getToken().then(function (token) {
+      var tokenP;
+      try { tokenP = t.getRestApi().getToken(); } catch (e) { return Promise.resolve({}); }
+      return Promise.resolve(tokenP).then(function (token) {
         if (!token || !Epic.APP_KEY) return {};
         var qs = 'filter=closed&fields=name,idList,closed&key=' + encodeURIComponent(Epic.APP_KEY) + '&token=' + encodeURIComponent(token);
         return fetch('https://api.trello.com/1/boards/' + boardId + '/cards?' + qs)

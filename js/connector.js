@@ -23,13 +23,19 @@
       .then(function (archived) { return Epic.computeStats(t, cardId, { archivedById: archived }); });
   }
 
+  // Never let a REST-auth check break the buttons: default to "authorized".
+  function isAuthorizedSafe(t) {
+    try { return t.getRestApi().isAuthorized().catch(function () { return true; }); }
+    catch (e) { return Promise.resolve(true); }
+  }
+
   TrelloPowerUp.initialize({
     // ---- card buttons ----
     'card-buttons': function (t) {
-      return Promise.all([t.card('id'), t.getRestApi().isAuthorized()]).then(function (r) {
-        var cardId = r[0].id, authed = r[1];
-        return Promise.all([Epic.isSubscription(t, cardId), Epic.getParent(t, cardId)]).then(function (rr) {
-          var isSub = rr[0], parent = rr[1];
+      return t.card('id').then(function (c) {
+        var cardId = c.id;
+        return Promise.all([Epic.isSubscription(t, cardId), Epic.getParent(t, cardId), isAuthorizedSafe(t)]).then(function (rr) {
+          var isSub = rr[0], parent = rr[1], authed = rr[2];
           var buttons = [];
 
           buttons.push({
