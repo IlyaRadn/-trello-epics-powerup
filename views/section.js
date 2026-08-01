@@ -1,15 +1,16 @@
 /* global TrelloPowerUp, Epic, Views */
 /*
- * section.js — the always-visible "Duck Epics" card-back section.
- * Everything is inline (no t.popup, which Trello does not open from a
- * card-back-section iframe): authorize, create sub-task, icon picker, attach.
+ * section.js — always-visible "Duck Epics" card-back section. Everything inline
+ * (Trello does not open t.popup from a card-back-section iframe).
+ *
+ * Primary "+ Sub-task" = link an EXISTING board card (no auth, board pluginData).
+ * "Создать новую" = create a card via REST (needs authorize; secondary).
  */
 (function () {
-  // appKey/appName are required here (not just in connector) so getRestApi()
-  // — authorize + token for creating cards — works from this iframe.
   var t = TrelloPowerUp.iframe({ appKey: Epic.APP_KEY, appName: Epic.APP_NAME });
   var root;
-  var busy = false; // a form is open — don't let t.render wipe it
+  var busy = false;
+  var LIMIT = 30;
 
   function fit() { if (t.sizeTo) t.sizeTo(document.body); }
   function authed() {
@@ -47,7 +48,6 @@
 
   function showAttach(cardId) {
     busy = true;
-    root.innerHTML = '<p class="muted small">Загрузка…</p>';
     Promise.all([Epic.listSubscriptions(t), t.cards('id', 'name')]).then(function (r) {
       var subs = r[0].filter(function (id) { return id !== cardId; });
       var nameOf = {}; r[1].forEach(function (x) { nameOf[x.id] = x.name; });
@@ -82,38 +82,82 @@
         if (!s.total) rows = '<p class="muted small">Пока нет подзадач — нажмите «+ Sub-task».</p>';
 
         var authRow = isAuthed ? '' :
-          '<p class="small" style="color:#974f0c;margin:8px 0 4px">Для создания подзадач и учёта архивных нужна авторизация Trello.</p>' +
-          '<div class="actions"><button class="btn primary" id="auth">Authorize</button></div>';
+          '<p class="small muted" style="margin:8px 0 4px">Создание новых карточек и учёт архивных — по авторизации:</p>' +
+          '<div class="actions"><button class="btn" id="auth">Authorize (опционально)</button></div>';
 
         root.innerHTML =
           '<div class="progress"><b style="font-size:16px">' + icon + '</b>' +
           '<div class="bar"><i style="width:' + pct + '%"></i></div>' +
           '<span class="small muted">' + s.done + '/' + s.total + ' done</span></div>' +
           '<div class="toolbar"><button class="iconbtn" id="ic" title="Значок">' + icon + '</button>' +
-          '<button class="btn primary" id="add"' + (isAuthed ? '' : ' disabled title="Сначала Authorize"') + '>+ Sub-task</button>' +
+          '<button class="btn primary" id="link">+ Sub-task</button>' +
+          '<button class="btn" id="new"' + (isAuthed ? '' : ' disabled title="Нужна авторизация"') + '>Создать новую</button>' +
           '<button class="btn" id="un">Unmark</button></div>' +
-          authRow + '<div class="list">' + rows + '</div>';
+          '<div class="list">' + rows + '</div>' + authRow;
 
-        root.querySelectorAll('.item').forEach(function (el) {
+        root.querySelectorAll('.list .item').forEach(function (el) {
           el.addEventListener('click', function () { t.showCard(el.getAttribute('data-id')); });
         });
         document.getElementById('ic').addEventListener('click', function () { showIconPicker(cardId); });
+        document.getElementById('link').addEventListener('click', function () { showLinkExisting(cardId); });
         document.getElementById('un').addEventListener('click', function () { Epic.unmakeSubscription(t, cardId).then(render); });
-        var add = document.getElementById('add');
-        if (add && !add.disabled) add.addEventListener('click', function () { showCreateForm(cardId); });
+        var nw = document.getElementById('new');
+        if (nw && !nw.disabled) nw.addEventListener('click', function () { showCreateForm(cardId); });
         var au = document.getElementById('auth');
         if (au) au.addEventListener('click', function () { doAuthorize(); });
       });
   }
 
+  // Link an existing board card as a sub-task (no auth needed).
+  function showLinkExisting(parentId) {
+    busy = true;
+    root.innerHTML = '<p class="muted small">Загрузка карточек…</p>';
+    Promise.all([t.cards('id', 'name', 'idList'), t.lists('id', 'name'), Epic.getChildren(t, parentId)]).then(function (r) {
+      var cards = r[0], lists = r[1], existing = r[2];
+      var listName = {}; lists.forEach(function (l) { listName[l.id] = l.name; });
+      var taken = {}; existing.forEach(function (id) { taken[id] = 1; }); taken[parentId] = 1;
+      var candidates = cards.filter(function (c) { return !taken[c.id]; });
+
+      function rowHtml(list) {
+        return list.slice(0, LIMIT).map(function (c) {
+          return '<button class="item" data-id="' + c.id + '"><span class="name">' + Views.esc(c.name) + '</span><span class="pill">' + Views.esc(listName[c.idList] || '') + '</span></button>';
+        }).join('') + (list.length > LIMIT ? '<p class="muted small">…показаны первые ' + LIMIT + '. Уточните поиском.</p>' : '') || '<p class="muted small">Ничего не найдено.</p>';
+      }
+      function bind() {
+        root.querySelectorAll('#cand .item').forEach(function (el) {
+          el.addEventListener('click', function () {
+            Epic.setParent(t, el.getAttribute('data-id'), parentId).then(render).catch(function () { render(); });
+          });
+        });
+      }
+
+      root.innerHTML =
+        '<label>Добавить существующую карточку как Sub-task</label>' +
+        '<input type="text" id="flt" placeholder="Поиск по названию…" autocomplete="off">' +
+        '<div class="list" id="cand">' + rowHtml(candidates) + '</div>' +
+        '<div class="actions"><button class="btn" id="cx">Отмена</button></div>';
+      bind();
+      var flt = document.getElementById('flt');
+      flt.addEventListener('input', function () {
+        var q = flt.value.toLowerCase();
+        var filtered = candidates.filter(function (c) { return (c.name || '').toLowerCase().indexOf(q) >= 0; });
+        document.getElementById('cand').innerHTML = rowHtml(filtered);
+        bind(); fit();
+      });
+      flt.focus();
+      document.getElementById('cx').addEventListener('click', render);
+      fit();
+    });
+  }
+
   function doAuthorize() {
     var au = document.getElementById('auth');
-    if (au) { au.textContent = 'Открываю окно Trello…'; au.disabled = true; }
+    if (au) { au.textContent = 'Открываю…'; au.disabled = true; }
     try {
       t.getRestApi().authorize({ scope: 'read,write', expiration: 'never' })
         .then(render)
-        .catch(function (e) { if (au) { au.textContent = 'Authorize'; au.disabled = false; } });
-    } catch (e) { if (au) { au.textContent = 'Authorize'; au.disabled = false; } }
+        .catch(function () { if (au) { au.textContent = 'Authorize (опционально)'; au.disabled = false; } });
+    } catch (e) { if (au) { au.textContent = 'Authorize (опционально)'; au.disabled = false; } }
   }
 
   function showCreateForm(cardId) {
@@ -122,7 +166,7 @@
       var cur = r[0], lists = r[1];
       var opts = lists.map(function (l) { return '<option value="' + l.id + '"' + (l.id === cur.idList ? ' selected' : '') + '>' + Views.esc(l.name) + '</option>'; }).join('');
       root.innerHTML =
-        '<label>Название подзадачи</label><input type="text" id="nm" placeholder="SUB - ..." autocomplete="off">' +
+        '<label>Название новой подзадачи</label><input type="text" id="nm" placeholder="SUB - ..." autocomplete="off">' +
         '<label>Колонка</label><select id="ls">' + opts + '</select>' +
         '<div class="actions"><button class="btn primary" id="cr" disabled>Создать</button>' +
         '<button class="btn" id="cx">Отмена</button></div><p class="small muted" id="msg"></p>';
@@ -134,7 +178,7 @@
         Epic.createSubtask(t, { name: nm.value.trim(), idList: document.getElementById('ls').value, parentId: cardId })
           .then(render)
           .catch(function (e) {
-            document.getElementById('msg').textContent = (e.message === 'auth') ? 'Сначала нажмите Authorize.' : 'Ошибка: ' + e.message;
+            document.getElementById('msg').textContent = (e.message === 'auth') ? 'Сначала Authorize.' : 'Ошибка: ' + e.message;
             btn.disabled = false;
           });
       });
