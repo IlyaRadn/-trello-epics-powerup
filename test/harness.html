@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Duck Epics — mock test harness</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, Segoe UI, Roboto, sans-serif; margin: 24px; color: #172b4d; }
+    h1 { font-size: 18px; } h2 { font-size: 15px; margin-top: 28px; }
+    #summary { font-weight: 700; padding: 8px 12px; border-radius: 6px; display: inline-block; }
+    .ok { background: #e3fcef; color: #006644; } .bad { background: #ffebe6; color: #bf2600; }
+    .case { padding: 4px 0; border-bottom: 1px solid #f0f1f3; }
+    .pass::before { content: '✓ '; color: #36b37e; font-weight: 700; }
+    .fail::before { content: '✗ '; color: #ff5630; font-weight: 700; }
+    .fail { color: #bf2600; }
+    .card { border: 1px solid #dfe1e6; border-radius: 8px; padding: 12px; max-width: 420px; margin-top: 8px; }
+    .row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #f4f5f7; }
+    .row:last-child { border: 0; }
+    .pill { font-size: 12px; padding: 1px 8px; border-radius: 10px; background: #f4f5f7; }
+    .done { background: #e3fcef; color: #006644; }
+    .arch { opacity: .55; font-style: italic; }
+    .bar { height: 8px; background: #f4f5f7; border-radius: 5px; overflow: hidden; margin: 6px 0; }
+    .bar > i { display: block; height: 100%; background: #36b37e; }
+    code { background: #f4f5f7; padding: 1px 4px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h1>🧪 Duck Epics — mock test harness (S1)</h1>
+  <div id="summary">running…</div>
+
+  <h2>Проверки логики</h2>
+  <div id="cases"></div>
+
+  <h2>Превью секции родителя (по computeStats)</h2>
+  <div id="preview"></div>
+
+  <script src="../js/lib.js"></script>
+  <script src="mock-trello.js"></script>
+  <script>
+    var results = [];
+    function check(name, cond, detail) {
+      results.push({ name: name, ok: !!cond, detail: detail || '' });
+    }
+    function eq(name, got, want) {
+      check(name, JSON.stringify(got) === JSON.stringify(want), 'got ' + JSON.stringify(got) + ' want ' + JSON.stringify(want));
+    }
+
+    async function run() {
+      var m = createMockTrello();
+      var t = m.t, db = m.db;
+      var P = 'c_parent';
+
+      // --- meta / subscription ---
+      await Epic.makeSubscription(t, P);
+      check('makeSubscription → isSubscription', await Epic.isSubscription(t, P));
+      var icon = await Epic.getIcon(t, P);
+      check('auto icon assigned', typeof icon === 'string' && icon.length > 0, icon);
+      eq('autoIcon deterministic', Epic.autoIcon('c_parent'), Epic.autoIcon('c_parent'));
+
+      // --- linking ---
+      await Epic.setParent(t, 'c_k1', P);
+      await Epic.setParent(t, 'c_k2', P);
+      await Epic.setParent(t, 'c_k3', P);
+      eq('parent has 3 children', (await Epic.getChildren(t, P)).length, 3);
+      eq('child points to parent', await Epic.getParent(t, 'c_k1'), P);
+
+      // --- move child to another parent ---
+      await Epic.makeSubscription(t, 'c_other');
+      await Epic.setParent(t, 'c_k1', 'c_other');
+      eq('old parent lost the child', (await Epic.getChildren(t, P)).length, 2);
+      eq('new parent gained the child', await Epic.getChildren(t, 'c_other'), ['c_k1']);
+      // put it back for later stats
+      await Epic.setParent(t, 'c_k1', P);
+
+      // --- cycle prevention ---
+      var threw = false;
+      try { await Epic.setParent(t, P, 'c_k1'); } catch (e) { threw = (e.message === 'cycle'); }
+      check('cycle prevented (parent under its own child)', threw);
+
+      // --- detach ---
+      await Epic.setParent(t, 'c_k2', P);
+      await Epic.detach(t, 'c_k2');
+      check('detach clears parent pointer', (await Epic.getParent(t, 'c_k2')) === null);
+      check('detach removes from children', (await Epic.getChildren(t, P)).indexOf('c_k2') === -1);
+      await Epic.setParent(t, 'c_k2', P); // restore
+
+      // --- done detection ---
+      var lists = await t.lists();
+      eq('findDoneListId → Completed Tasks', Epic.findDoneListId(lists), 'l_completed');
+
+      // --- stats (active only) ---
+      var s = await Epic.computeStats(t, P);
+      eq('stats total (3 active children)', s.total, 3);
+      eq('stats done (1 in Completed)', s.done, 1);
+
+      // --- stats with archived via REST map ---
+      await Epic.setParent(t, 'c_k4', P);
+      var archivedById = { c_k4: { id: 'c_k4', name: 'SUB - old', idList: 'l_completed', closed: true } };
+      var s2 = await Epic.computeStats(t, P, { archivedById: archivedById });
+      eq('stats total incl archived', s2.total, 4);
+      eq('stats done incl archived-in-completed', s2.done, 2);
+
+      // --- unmake ---
+      var kidsBefore = await Epic.getChildren(t, 'c_other');
+      await Epic.unmakeSubscription(t, 'c_other');
+      check('unmake clears role', !(await Epic.isSubscription(t, 'c_other')));
+      check('unmake detaches its children', (await Epic.getParent(t, kidsBefore[0])) === null);
+
+      renderResults();
+      renderPreview(s2, await t.lists(), icon);
+    }
+
+    function renderResults() {
+      var pass = results.filter(function (r) { return r.ok; }).length;
+      var sum = document.getElementById('summary');
+      sum.textContent = pass + ' / ' + results.length + ' passed';
+      sum.className = (pass === results.length) ? 'ok' : 'bad';
+      document.getElementById('cases').innerHTML = results.map(function (r) {
+        return '<div class="case ' + (r.ok ? 'pass' : 'fail') + '">' + r.name +
+          (r.ok ? '' : ' — <small>' + r.detail + '</small>') + '</div>';
+      }).join('');
+    }
+
+    function renderPreview(s, lists, icon) {
+      var pct = s.total ? Math.round(100 * s.done / s.total) : 0;
+      var rows = s.items.map(function (it) {
+        return '<div class="row ' + (it.archived ? 'arch' : '') + '">' +
+          '<span>' + it.name + (it.archived ? ' 📦' : '') + '</span>' +
+          '<span class="pill ' + (it.done ? 'done' : '') + '">' + it.list + '</span></div>';
+      }).join('');
+      document.getElementById('preview').innerHTML =
+        '<div class="card"><b>' + icon + ' Desri</b> — Subscription' +
+        '<div>' + s.done + ' / ' + s.total + ' done</div>' +
+        '<div class="bar"><i style="width:' + pct + '%"></i></div>' + rows + '</div>';
+    }
+
+    run().catch(function (e) {
+      document.getElementById('summary').textContent = 'ERROR: ' + e.message;
+      document.getElementById('summary').className = 'bad';
+      console.error(e);
+    });
+  </script>
+</body>
+</html>

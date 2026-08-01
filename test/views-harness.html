@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Duck Epics — views preview (mock)</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <style>
+    body { background: #fafbfc; }
+    h1 { font-size: 17px; }
+    .grid2 { display: grid; grid-template-columns: repeat(2, minmax(280px, 340px)); gap: 20px; }
+    .panel { background: #fff; border: 1px solid #dfe1e6; border-radius: 10px; padding: 12px; }
+    .panel h2 { font-size: 13px; margin: 0 0 8px; color: #5e6c84; text-transform: uppercase; letter-spacing: .04em; }
+    #err { color: #bf2600; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>🖼️ Duck Epics — превью вьюх (мок-данные)</h1>
+  <p class="small muted">Рендер каждой вьюхи через <code>Views.x(mockT, root)</code>. Клики (открыть карточку, закрыть попап) логируются в консоль.</p>
+  <div id="err"></div>
+  <div class="grid2">
+    <div class="panel"><h2>S7 · Секция родителя (Subscription)</h2><div id="v_parent"></div></div>
+    <div class="panel"><h2>S8 · Секция ребёнка (Sub-task)</h2><div id="v_child"></div></div>
+    <div class="panel"><h2>S3 · Выбор родителя (popup)</h2><div id="v_choose"></div></div>
+    <div class="panel"><h2>S4 · Создание Sub-task (popup)</h2><div id="v_create"></div></div>
+    <div class="panel"><h2>S2 · Пикер иконок (popup)</h2><div id="v_icon"></div></div>
+  </div>
+
+  <script>window.__MOCK_BOOT__ = true;</script>
+  <script src="../js/lib.js"></script>
+  <script src="mock-trello.js"></script>
+  <script src="../views/common.js"></script>
+  <script src="../views/parent-section.js"></script>
+  <script src="../views/child-section.js"></script>
+  <script src="../views/choose-parent.js"></script>
+  <script src="../views/create-subtask.js"></script>
+  <script src="../views/icon-picker.js"></script>
+  <script>
+    window.__mockLog = function () { console.log.apply(console, ['[mock]'].concat([].slice.call(arguments))); };
+    var m = createMockTrello();
+    var t = m.t;
+
+    async function setup() {
+      await Epic.makeSubscription(t, 'c_parent');
+      await Epic.setParent(t, 'c_k1', 'c_parent');
+      await Epic.setParent(t, 'c_k2', 'c_parent');
+      await Epic.setParent(t, 'c_k3', 'c_parent');
+      await Epic.setParent(t, 'c_k4', 'c_parent'); // archived, in Completed
+    }
+
+    async function renderAll() {
+      m.currentCard('c_parent'); await Views.parentSection(t, document.getElementById('v_parent'));
+      m.currentCard('c_k1');     await Views.childSection(t, document.getElementById('v_child'));
+      m.currentCard('c_k2');     await Views.chooseParent(t, document.getElementById('v_choose'));
+      m.currentCard('c_parent'); await Views.createSubtask(t, document.getElementById('v_create'));
+      m.currentCard('c_parent'); await Views.iconPicker(t, document.getElementById('v_icon'));
+    }
+
+    setup().then(renderAll).catch(function (e) {
+      document.getElementById('err').textContent = 'ERROR: ' + (e && e.stack || e);
+      console.error(e);
+    });
+  </script>
+</body>
+</html>
