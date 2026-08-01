@@ -5,7 +5,9 @@
  * card-back-section iframe): authorize, create sub-task, icon picker, attach.
  */
 (function () {
-  var t = TrelloPowerUp.iframe();
+  // appKey/appName are required here (not just in connector) so getRestApi()
+  // — authorize + token for creating cards — works from this iframe.
+  var t = TrelloPowerUp.iframe({ appKey: Epic.APP_KEY, appName: Epic.APP_NAME });
   var root;
   var busy = false; // a form is open — don't let t.render wipe it
 
