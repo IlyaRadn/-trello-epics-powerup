@@ -3,8 +3,10 @@
  * section.js — always-visible "Duck Epics" card-back section. Everything inline
  * (Trello does not open t.popup from a card-back-section iframe).
  *
- * Primary "+ Sub-task" = link an EXISTING board card (no auth, board pluginData).
- * "Создать новую" = create a card via REST (needs authorize; secondary).
+ * Auth: our own OAuth — open Trello's authorize page in a real window,
+ * capture the token via postMessage from views/auth-return.html, store it
+ * member-private. "+ Sub-task" creates a new card (needs token); "🔗 Привязать"
+ * links an existing board card (no auth).
  */
 (function () {
   var t = TrelloPowerUp.iframe({ appKey: Epic.APP_KEY, appName: Epic.APP_NAME });
@@ -13,9 +15,21 @@
   var LIMIT = 30;
 
   function fit() { if (t.sizeTo) t.sizeTo(document.body); }
-  function authed() {
-    try { return t.getRestApi().isAuthorized().catch(function () { return false; }); }
-    catch (e) { return Promise.resolve(false); }
+  function authed() { return Epic.getToken(t).then(function (tok) { return !!tok; }).catch(function () { return false; }); }
+
+  function doAuthorize(onDone) {
+    var ret = location.href.replace(/[^/]*$/, '') + 'auth-return.html';
+    var u = 'https://trello.com/1/authorize?expiration=never&scope=read,write&name=Duck%20Epics' +
+      '&response_type=token&key=' + encodeURIComponent(Epic.APP_KEY) +
+      '&return_url=' + encodeURIComponent(ret) + '&callback_method=fragment';
+    window.open(u, 'duckauth', 'width=500,height=760');
+    function handler(e) {
+      if (e && e.data && e.data.duckToken) {
+        window.removeEventListener('message', handler);
+        Epic.setToken(t, e.data.duckToken).then(function () { if (onDone) onDone(); });
+      }
+    }
+    window.addEventListener('message', handler);
   }
 
   function render() {
@@ -35,6 +49,9 @@
     });
   }
 
+  function backBar() { return '<div class="actions" style="margin-bottom:6px"><button class="btn" id="cx">← Назад</button></div>'; }
+  function wireBack() { var b = document.getElementById('cx'); if (b) b.addEventListener('click', render); }
+
   // ---------- unlinked ----------
   function renderNone(cardId) {
     root.innerHTML =
@@ -51,17 +68,14 @@
     Promise.all([Epic.listSubscriptions(t), t.cards('id', 'name')]).then(function (r) {
       var subs = r[0].filter(function (id) { return id !== cardId; });
       var nameOf = {}; r[1].forEach(function (x) { nameOf[x.id] = x.name; });
-      if (!subs.length) {
-        root.innerHTML = '<p class="muted small">На доске ещё нет Subscription.</p><div class="actions"><button class="btn" id="bk">Назад</button></div>';
-      } else {
-        root.innerHTML = '<p class="small muted">Выберите Subscription:</p><div class="list">' +
-          subs.map(function (id) { return '<button class="item" data-id="' + id + '"><span class="name">' + Views.esc(nameOf[id] || '(card)') + '</span></button>'; }).join('') +
-          '</div><div class="actions"><button class="btn" id="bk">Отмена</button></div>';
-        root.querySelectorAll('.item').forEach(function (el) {
-          el.addEventListener('click', function () { Epic.setParent(t, cardId, el.getAttribute('data-id')).then(render).catch(function () { render(); }); });
-        });
-      }
-      document.getElementById('bk').addEventListener('click', render);
+      root.innerHTML = backBar() + (subs.length
+        ? '<p class="small muted">Выберите Subscription:</p><div class="list">' +
+          subs.map(function (id) { return '<button class="item" data-id="' + id + '"><span class="name">' + Views.esc(nameOf[id] || '(card)') + '</span></button>'; }).join('') + '</div>'
+        : '<p class="muted small">На доске ещё нет Subscription.</p>');
+      wireBack();
+      root.querySelectorAll('.list .item').forEach(function (el) {
+        el.addEventListener('click', function () { Epic.setParent(t, cardId, el.getAttribute('data-id')).then(render).catch(function () { render(); }); });
+      });
       fit();
     });
   }
@@ -70,45 +84,66 @@
   function renderParent(cardId) {
     return t.board('id')
       .then(function (b) { return Epic.fetchArchived(t, b.id); })
-      .then(function (arch) { return Promise.all([Epic.computeStats(t, cardId, { archivedById: arch }), Epic.getIcon(t, cardId), authed()]); })
+      .then(function (arch) { return Promise.all([Epic.computeStats(t, cardId, { archivedById: arch }), Epic.getIcon(t, cardId)]); })
       .then(function (r) {
-        var s = r[0], icon = r[1], isAuthed = r[2];
+        var s = r[0], icon = r[1];
         var pct = s.total ? Math.round(100 * s.done / s.total) : 0;
         var rows = s.items.map(function (it) {
           return '<button class="item ' + (it.archived ? 'archived' : '') + '" data-id="' + it.id + '">' +
             '<span class="name">' + Views.esc(it.name) + (it.archived ? ' 📦' : '') + '</span>' +
             '<span class="pill ' + (it.done ? 'done' : '') + '">' + Views.esc(it.list) + '</span></button>';
         }).join('');
-        if (!s.total) rows = '<p class="muted small">Пока нет подзадач — нажмите «+ Sub-task».</p>';
-
-        var authRow = isAuthed ? '' :
-          '<p class="small muted" style="margin:8px 0 4px">Создание новых карточек и учёт архивных — по авторизации:</p>' +
-          '<div class="actions"><button class="btn" id="auth">Authorize (опционально)</button></div>';
+        if (!s.total) rows = '<p class="muted small">Пока нет подзадач — «+ Sub-task» создаст новую, «🔗 Привязать» добавит существующую.</p>';
 
         root.innerHTML =
           '<div class="progress"><b style="font-size:16px">' + icon + '</b>' +
           '<div class="bar"><i style="width:' + pct + '%"></i></div>' +
           '<span class="small muted">' + s.done + '/' + s.total + ' done</span></div>' +
           '<div class="toolbar"><button class="iconbtn" id="ic" title="Значок">' + icon + '</button>' +
-          '<button class="btn primary" id="link">+ Sub-task</button>' +
-          '<button class="btn" id="new"' + (isAuthed ? '' : ' disabled title="Нужна авторизация"') + '>Создать новую</button>' +
+          '<button class="btn primary" id="new">+ Sub-task</button>' +
+          '<button class="btn" id="link">🔗 Привязать</button>' +
           '<button class="btn" id="un">Unmark</button></div>' +
-          '<div class="list">' + rows + '</div>' + authRow;
+          '<div class="list">' + rows + '</div>';
 
         root.querySelectorAll('.list .item').forEach(function (el) {
           el.addEventListener('click', function () { t.showCard(el.getAttribute('data-id')); });
         });
         document.getElementById('ic').addEventListener('click', function () { showIconPicker(cardId); });
+        document.getElementById('new').addEventListener('click', function () { showCreateForm(cardId); });
         document.getElementById('link').addEventListener('click', function () { showLinkExisting(cardId); });
         document.getElementById('un').addEventListener('click', function () { Epic.unmakeSubscription(t, cardId).then(render); });
-        var nw = document.getElementById('new');
-        if (nw && !nw.disabled) nw.addEventListener('click', function () { showCreateForm(cardId); });
-        var au = document.getElementById('auth');
-        if (au) au.addEventListener('click', function () { doAuthorize(); });
       });
   }
 
-  // Link an existing board card as a sub-task (no auth needed).
+  function showCreateForm(cardId) {
+    busy = true;
+    Promise.all([t.card('idList'), t.lists('id', 'name'), authed()]).then(function (r) {
+      var cur = r[0], lists = r[1], isAuthed = r[2];
+      var opts = lists.map(function (l) { return '<option value="' + l.id + '"' + (l.id === cur.idList ? ' selected' : '') + '>' + Views.esc(l.name) + '</option>'; }).join('');
+      root.innerHTML = backBar() +
+        (isAuthed ? '' :
+          '<p class="small" style="color:#974f0c;margin:0 0 6px">Создание новой карточки требует однократной авторизации Trello.</p>' +
+          '<div class="actions" style="margin-bottom:8px"><button class="btn primary" id="auth">Authorize</button></div>') +
+        '<label>Название новой подзадачи</label><input type="text" id="nm" placeholder="SUB - ..." autocomplete="off">' +
+        '<label>Колонка</label><select id="ls">' + opts + '</select>' +
+        '<div class="actions"><button class="btn primary" id="cr" disabled>Создать</button></div>' +
+        '<p class="small muted" id="msg"></p>';
+      wireBack();
+      var au = document.getElementById('auth');
+      if (au) au.addEventListener('click', function () { au.textContent = 'Открываю окно Trello…'; au.disabled = true; doAuthorize(function () { showCreateForm(cardId); }); });
+      var nm = document.getElementById('nm'), cr = document.getElementById('cr');
+      nm.addEventListener('input', function () { cr.disabled = !nm.value.trim() || !isAuthed; });
+      if (isAuthed) nm.focus();
+      cr.addEventListener('click', function () {
+        cr.disabled = true; document.getElementById('msg').textContent = 'Создаю…';
+        Epic.createSubtask(t, { name: nm.value.trim(), idList: document.getElementById('ls').value, parentId: cardId })
+          .then(render)
+          .catch(function (e) { document.getElementById('msg').textContent = (e.message === 'auth') ? 'Сначала Authorize.' : 'Ошибка: ' + e.message; cr.disabled = false; });
+      });
+      fit();
+    });
+  }
+
   function showLinkExisting(parentId) {
     busy = true;
     root.innerHTML = '<p class="muted small">Загрузка карточек…</p>';
@@ -119,70 +154,30 @@
       var candidates = cards.filter(function (c) { return !taken[c.id]; });
 
       function rowHtml(list) {
-        return list.slice(0, LIMIT).map(function (c) {
+        var html = list.slice(0, LIMIT).map(function (c) {
           return '<button class="item" data-id="' + c.id + '"><span class="name">' + Views.esc(c.name) + '</span><span class="pill">' + Views.esc(listName[c.idList] || '') + '</span></button>';
-        }).join('') + (list.length > LIMIT ? '<p class="muted small">…показаны первые ' + LIMIT + '. Уточните поиском.</p>' : '') || '<p class="muted small">Ничего не найдено.</p>';
+        }).join('');
+        if (list.length > LIMIT) html += '<p class="muted small">…показаны первые ' + LIMIT + '. Уточните поиском.</p>';
+        return html || '<p class="muted small">Ничего не найдено.</p>';
       }
       function bind() {
         root.querySelectorAll('#cand .item').forEach(function (el) {
-          el.addEventListener('click', function () {
-            Epic.setParent(t, el.getAttribute('data-id'), parentId).then(render).catch(function () { render(); });
-          });
+          el.addEventListener('click', function () { Epic.setParent(t, el.getAttribute('data-id'), parentId).then(render).catch(function () { render(); }); });
         });
       }
 
-      root.innerHTML =
-        '<label>Добавить существующую карточку как Sub-task</label>' +
+      root.innerHTML = backBar() +
+        '<label>Привязать существующую карточку</label>' +
         '<input type="text" id="flt" placeholder="Поиск по названию…" autocomplete="off">' +
-        '<div class="list" id="cand">' + rowHtml(candidates) + '</div>' +
-        '<div class="actions"><button class="btn" id="cx">Отмена</button></div>';
-      bind();
+        '<div class="list" id="cand">' + rowHtml(candidates) + '</div>';
+      wireBack(); bind();
       var flt = document.getElementById('flt');
       flt.addEventListener('input', function () {
         var q = flt.value.toLowerCase();
-        var filtered = candidates.filter(function (c) { return (c.name || '').toLowerCase().indexOf(q) >= 0; });
-        document.getElementById('cand').innerHTML = rowHtml(filtered);
+        document.getElementById('cand').innerHTML = rowHtml(candidates.filter(function (c) { return (c.name || '').toLowerCase().indexOf(q) >= 0; }));
         bind(); fit();
       });
       flt.focus();
-      document.getElementById('cx').addEventListener('click', render);
-      fit();
-    });
-  }
-
-  function doAuthorize() {
-    var au = document.getElementById('auth');
-    if (au) { au.textContent = 'Открываю…'; au.disabled = true; }
-    try {
-      t.getRestApi().authorize({ scope: 'read,write', expiration: 'never' })
-        .then(render)
-        .catch(function () { if (au) { au.textContent = 'Authorize (опционально)'; au.disabled = false; } });
-    } catch (e) { if (au) { au.textContent = 'Authorize (опционально)'; au.disabled = false; } }
-  }
-
-  function showCreateForm(cardId) {
-    busy = true;
-    Promise.all([t.card('idList'), t.lists('id', 'name')]).then(function (r) {
-      var cur = r[0], lists = r[1];
-      var opts = lists.map(function (l) { return '<option value="' + l.id + '"' + (l.id === cur.idList ? ' selected' : '') + '>' + Views.esc(l.name) + '</option>'; }).join('');
-      root.innerHTML =
-        '<label>Название новой подзадачи</label><input type="text" id="nm" placeholder="SUB - ..." autocomplete="off">' +
-        '<label>Колонка</label><select id="ls">' + opts + '</select>' +
-        '<div class="actions"><button class="btn primary" id="cr" disabled>Создать</button>' +
-        '<button class="btn" id="cx">Отмена</button></div><p class="small muted" id="msg"></p>';
-      var nm = document.getElementById('nm');
-      nm.addEventListener('input', function () { document.getElementById('cr').disabled = !nm.value.trim(); });
-      nm.focus();
-      document.getElementById('cr').addEventListener('click', function () {
-        var btn = this; btn.disabled = true; document.getElementById('msg').textContent = 'Создаю…';
-        Epic.createSubtask(t, { name: nm.value.trim(), idList: document.getElementById('ls').value, parentId: cardId })
-          .then(render)
-          .catch(function (e) {
-            document.getElementById('msg').textContent = (e.message === 'auth') ? 'Сначала Authorize.' : 'Ошибка: ' + e.message;
-            btn.disabled = false;
-          });
-      });
-      document.getElementById('cx').addEventListener('click', render);
       fit();
     });
   }
@@ -190,12 +185,11 @@
   function showIconPicker(cardId) {
     busy = true;
     var grid = Epic.ICON_PALETTE.map(function (e) { return '<button data-e="' + e + '">' + e + '</button>'; }).join('');
-    root.innerHTML = '<p class="small muted">Значок Subscription:</p><div class="grid">' + grid + '</div>' +
-      '<div class="actions"><button class="btn" id="cx">Отмена</button></div>';
+    root.innerHTML = backBar() + '<p class="small muted">Значок Subscription:</p><div class="grid">' + grid + '</div>';
+    wireBack();
     root.querySelectorAll('.grid button').forEach(function (b) {
       b.addEventListener('click', function () { Epic.setIcon(t, cardId, b.getAttribute('data-e')).then(render); });
     });
-    document.getElementById('cx').addEventListener('click', render);
     fit();
   }
 

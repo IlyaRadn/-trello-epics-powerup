@@ -41,13 +41,16 @@
     APP_KEY: 'ffdbea7aa839ec372b926441255ca3d3',
     APP_NAME: 'Duck Epics',
 
+    // ---------- token (our own OAuth flow, stored member-private) ----------
+    getToken: function (t) { return t.get('member', 'private', 'duckToken').catch(function () { return null; }); },
+    setToken: function (t, token) { return t.set('member', 'private', 'duckToken', token); },
+    clearToken: function (t) { return t.remove('member', 'private', 'duckToken'); },
+
     // ---------- REST helpers (need user authorization, see S5) ----------
     // Create a new card via REST and link it under `parentId` as a Sub-task.
     // Resolves with the new card id. Rejects with Error('auth') if not authorized.
     createSubtask: function (t, opts) {
-      var tokenP;
-      try { tokenP = t.getRestApi().getToken(); } catch (e) { return Promise.reject(new Error('auth')); }
-      return Promise.resolve(tokenP).then(function (token) {
+      return Epic.getToken(t).then(function (token) {
         if (!token || !Epic.APP_KEY) throw new Error('auth');
         var qs = 'idList=' + encodeURIComponent(opts.idList) +
           '&name=' + encodeURIComponent(opts.name) +
@@ -64,9 +67,7 @@
     // Fetch archived (closed) cards for the board via REST, as id->{idList,name,closed}.
     // Used by the parent section/badges to include archived sub-tasks (S5+).
     fetchArchived: function (t, boardId) {
-      var tokenP;
-      try { tokenP = t.getRestApi().getToken(); } catch (e) { return Promise.resolve({}); }
-      return Promise.resolve(tokenP).then(function (token) {
+      return Epic.getToken(t).then(function (token) {
         if (!token || !Epic.APP_KEY) return {};
         var qs = 'filter=closed&fields=name,idList,closed&key=' + encodeURIComponent(Epic.APP_KEY) + '&token=' + encodeURIComponent(token);
         return fetch('https://api.trello.com/1/boards/' + boardId + '/cards?' + qs)

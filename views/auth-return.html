@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>Duck Epics — авторизация</title>
+  <style>body{font:14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;color:#172b4d;margin:24px}</style>
+</head>
+<body>
+  <p id="m">Обработка…</p>
+  <script>
+    (function () {
+      var h = location.hash || '';
+      var m = h.match(/token=([^&]+)/);
+      var token = m ? decodeURIComponent(m[1]) : null;
+      var el = document.getElementById('m');
+      if (token && window.opener) {
+        try { window.opener.postMessage({ duckToken: token }, '*'); } catch (e) {}
+        el.textContent = 'Авторизация успешна. Окно закроется…';
+        setTimeout(function () { window.close(); }, 700);
+      } else if (token) {
+        el.textContent = 'Токен получен. Скопируйте и вставьте в плагин: ' + token;
+      } else {
+        el.textContent = 'Токен не получен. Закройте окно и попробуйте ещё раз.';
+      }
+    })();
+  </script>
+</body>
+</html>
