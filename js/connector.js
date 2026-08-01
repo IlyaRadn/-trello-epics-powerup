@@ -100,16 +100,13 @@
       });
     },
 
-    // ---- section on the back of the card ----
+    // ---- section on the back of the card (ALWAYS shown; handles all states) ----
     'card-back-section': function (t) {
-      return t.card('id').then(function (c) {
-        return Promise.all([Epic.isSubscription(t, c.id), Epic.getParent(t, c.id)]).then(function (r) {
-          var isSub = r[0], parent = r[1];
-          if (isSub) return { title: 'Subscription — Sub-tasks', icon: ICON, content: { type: 'iframe', url: t.signUrl(url('views/parent-section.html')), height: 260 } };
-          if (parent) return { title: 'Part of Subscription', icon: ICON, content: { type: 'iframe', url: t.signUrl(url('views/child-section.html')), height: 90 } };
-          return null;
-        });
-      });
+      return {
+        title: 'Duck Epics',
+        icon: ICON,
+        content: { type: 'iframe', url: t.signUrl(url('views/section.html')), height: 200 },
+      };
     },
 
     // ---- authorization ----
