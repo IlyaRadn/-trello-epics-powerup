@@ -1,16 +1,25 @@
 /* global TrelloPowerUp, Epic, Views */
 /*
  * section.js — the always-visible "Duck Epics" card-back section.
- * Handles all three states of a card:
- *   - Subscription  -> progress + list of sub-tasks (+ add / icon / unmark)
- *   - Sub-task      -> its parent Subscription (+ detach)
- *   - Unlinked      -> "Make Subscription" / "Attach to Subscription"
+ *   Subscription -> progress + sub-tasks (+ add / icon / unmark / authorize)
+ *   Sub-task     -> its parent (+ detach)
+ *   Unlinked     -> Make Subscription / Attach to Subscription
  */
 (function () {
   var t = TrelloPowerUp.iframe();
+  // Absolute base of this /views/ folder, so popup URLs resolve reliably.
+  var HERE = location.href.replace(/[^/]*$/, '');
+  function vurl(p) { return HERE + p; }
   var root;
 
   function fit() { if (t.sizeTo) t.sizeTo(document.body); }
+  function authed() {
+    try { return t.getRestApi().isAuthorized().catch(function () { return false; }); }
+    catch (e) { return Promise.resolve(false); }
+  }
+  function popup(title, page, height) {
+    return t.popup({ title: title, url: vurl(page), height: height || 300 });
+  }
 
   function render() {
     root = document.getElementById('root');
@@ -38,7 +47,7 @@
       Epic.makeSubscription(t, cardId).then(render);
     });
     document.getElementById('at').addEventListener('click', function () {
-      t.popup({ title: 'Choose Subscription', url: './choose-parent.html', height: 300 });
+      popup('Choose Subscription', 'choose-parent.html');
     });
   }
 
@@ -46,10 +55,10 @@
     return t.board('id')
       .then(function (b) { return Epic.fetchArchived(t, b.id); })
       .then(function (arch) {
-        return Promise.all([Epic.computeStats(t, cardId, { archivedById: arch }), Epic.getIcon(t, cardId)]);
+        return Promise.all([Epic.computeStats(t, cardId, { archivedById: arch }), Epic.getIcon(t, cardId), authed()]);
       })
       .then(function (r) {
-        var s = r[0], icon = r[1];
+        var s = r[0], icon = r[1], isAuthed = r[2];
         var pct = s.total ? Math.round(100 * s.done / s.total) : 0;
         var rows = s.items.map(function (it) {
           return '<button class="item ' + (it.archived ? 'archived' : '') + '" data-id="' + it.id + '">' +
@@ -58,27 +67,29 @@
         }).join('');
         if (!s.total) rows = '<p class="muted small">Пока нет подзадач — нажмите «+ Sub-task».</p>';
 
+        var authRow = isAuthed ? '' :
+          '<p class="small" style="color:#974f0c;margin:8px 0 4px">Для создания подзадач нужна авторизация Trello.</p>' +
+          '<div class="actions"><button class="btn primary" id="auth">Authorize</button></div>';
+
         root.innerHTML =
           '<div class="progress"><b style="font-size:16px">' + icon + '</b>' +
           '<div class="bar"><i style="width:' + pct + '%"></i></div>' +
           '<span class="small muted">' + s.done + '/' + s.total + ' done</span></div>' +
           '<div class="toolbar"><button class="iconbtn" id="ic" title="Значок">' + icon + '</button>' +
-          '<button class="btn primary" id="add">+ Sub-task</button>' +
+          '<button class="btn primary" id="add"' + (isAuthed ? '' : ' disabled') + '>+ Sub-task</button>' +
           '<button class="btn" id="un">Unmark</button></div>' +
+          authRow +
           '<div class="list">' + rows + '</div>';
 
         root.querySelectorAll('.item').forEach(function (el) {
           el.addEventListener('click', function () { t.showCard(el.getAttribute('data-id')); });
         });
-        document.getElementById('ic').addEventListener('click', function () {
-          t.popup({ title: 'Значок Subscription', url: './icon-picker.html', height: 260 });
-        });
-        document.getElementById('add').addEventListener('click', function () {
-          t.popup({ title: 'Add Sub-task', url: './create-subtask.html', height: 300 });
-        });
-        document.getElementById('un').addEventListener('click', function () {
-          Epic.unmakeSubscription(t, cardId).then(render);
-        });
+        document.getElementById('ic').addEventListener('click', function () { popup('Значок Subscription', 'icon-picker.html', 260); });
+        var add = document.getElementById('add');
+        if (add && !add.disabled) add.addEventListener('click', function () { popup('Add Sub-task', 'create-subtask.html'); });
+        document.getElementById('un').addEventListener('click', function () { Epic.unmakeSubscription(t, cardId).then(render); });
+        var au = document.getElementById('auth');
+        if (au) au.addEventListener('click', function () { popup('Authorize Duck Epics', 'authorize.html', 170); });
       });
   }
 
@@ -92,13 +103,10 @@
         '<span class="pill">Subscription</span></button>' +
         '<div class="actions"><button class="btn danger" id="de">Detach</button></div>';
       root.querySelector('.item').addEventListener('click', function () { t.showCard(parentId); });
-      document.getElementById('de').addEventListener('click', function () {
-        Epic.detach(t, cardId).then(render);
-      });
+      document.getElementById('de').addEventListener('click', function () { Epic.detach(t, cardId).then(render); });
     });
   }
 
-  // Re-render when the popups close and change data.
   t.render(function () { render(); });
   render();
 })();

@@ -7,14 +7,13 @@
 (function () {
   'use strict';
 
-  var ICON =
-    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Crect x='3' y='3' width='18' height='18' rx='4' fill='%23172b4d'/%3E%3Crect x='7' y='7' width='10' height='2.5' rx='1' fill='white'/%3E%3Crect x='7' y='11' width='7' height='2.5' rx='1' fill='white'/%3E%3C/svg%3E";
-
   var BASE = (function () {
     var s = document.querySelector('script[src*="connector.js"]');
     return s ? s.src.replace(/js\/connector\.js.*$/, '') : './';
   })();
   function url(p) { return BASE + p; }
+
+  var ICON = url('assets/icon.svg');
 
   // Compute a Subscription's stats, pulling archived cards via REST when authorized.
   function statsFor(t, cardId) {
