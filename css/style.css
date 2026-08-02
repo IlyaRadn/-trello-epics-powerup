@@ -1,8 +1,8 @@
-/* Shared styles — Duck Epics section. Dark panel look (variant B). */
+/* Shared styles — Duck Epics section. Soft tinted panel (variant A). */
 :root {
   --ink: #172b4d; --sub: #5e6c84; --line: #dfe1e6; --bg: #f4f5f7;
   --green-bg: #e3fcef; --green: #006644; --blue: #0052cc;
-  --panel: #1f2a44; --panel-text: #cdd8ee; --panel-muted: #8ea3c9; --panel-track: #33405f;
+  --panel: #eef3fb; --panel-text: #0c447c; --panel-muted: #185fa5; --panel-track: #d7e5f7;
 }
 * { box-sizing: border-box; }
 body {

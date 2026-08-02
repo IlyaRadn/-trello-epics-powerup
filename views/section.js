@@ -17,16 +17,7 @@
   var lastRendered = null; // id of the card we last rendered for (navigation watch)
   var painted = false; // once painted, re-renders keep old content (no "Загрузка" flicker)
   var DBG = {};
-  function debugFooter() {
-    if (!root) return;
-    var el = document.createElement('p');
-    el.className = 'small muted';
-    el.style.cssText = 'opacity:.5;margin-top:10px;font-family:monospace';
-    el.textContent = 'DBG v25 · card ' + String(DBG.card).slice(-5) + ' · sub=' + (!!DBG.sub) +
-      ' · parent=' + (DBG.parent ? String(DBG.parent).slice(-5) : '—') +
-      ' · token=' + (DBG.token ? 'yes' : 'no') + ' · avatars=' + Object.keys(MEMBER_AVATARS).length;
-    root.appendChild(el);
-  }
+  function debugFooter() { /* debug readout disabled; re-enable if diagnosing */ }
 
   function fit() { if (t.sizeTo) t.sizeTo(document.body); }
   function authed() { return Epic.getToken(t).then(function (tok) { return !!tok; }).catch(function () { return false; }); }
