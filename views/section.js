@@ -82,9 +82,18 @@
 
   // ---------- subscription (parent) ----------
   function renderParent(cardId) {
-    return t.board('id')
-      .then(function (b) { return Epic.fetchArchived(t, b.id); })
-      .then(function (arch) { return Promise.all([Epic.computeStats(t, cardId, { archivedById: arch }), Epic.getIcon(t, cardId)]); })
+    // Fetch cards/lists once; only hit REST for archived if a child is missing
+    // from the active set (big speed win on large boards).
+    return Promise.all([t.cards('id', 'name', 'idList', 'closed'), t.lists('id', 'name'), Epic.getChildren(t, cardId), Epic.getIcon(t, cardId)])
+      .then(function (r0) {
+        var active = r0[0], lists = r0[1], childIds = r0[2], icon = r0[3];
+        var have = {}; active.forEach(function (c) { have[c.id] = 1; });
+        var missing = childIds.some(function (id) { return !have[id]; });
+        var archP = missing ? t.board('id').then(function (b) { return Epic.fetchArchived(t, b.id); }) : Promise.resolve({});
+        return archP.then(function (arch) {
+          return Epic.computeStats(t, cardId, { activeCards: active, lists: lists, archivedById: arch }).then(function (s) { return [s, icon]; });
+        });
+      })
       .then(function (r) {
         var s = r[0], icon = r[1];
         var pct = s.total ? Math.round(100 * s.done / s.total) : 0;

@@ -81,7 +81,10 @@
           }
           return Epic.getParent(t, c.id).then(function (p) {
             if (!p) return [];
-            return Epic.getIcon(t, p).then(function (icon) { return [{ text: icon + ' Subscription' }]; });
+            return Promise.all([Epic.getIcon(t, p), t.cards('id', 'name')]).then(function (rr) {
+              var pc = rr[1].filter(function (x) { return x.id === p; })[0];
+              return [{ text: rr[0] + ' ' + (pc ? pc.name : 'Subscription') }];
+            });
           });
         });
       });
@@ -104,7 +107,7 @@
       return {
         title: 'Duck Epics',
         icon: ICON,
-        content: { type: 'iframe', url: t.signUrl(url('views/section.html?v=9')), height: 200 },
+        content: { type: 'iframe', url: t.signUrl(url('views/section.html?v=10')), height: 200 },
       };
     },
 
