@@ -259,7 +259,13 @@
           var isDone = doneListId ? (c.idList === doneListId) : false;
           if (isDone) done++;
           byList[ln] = (byList[ln] || 0) + 1;
-          items.push({ id: id, name: c.name, list: ln, listId: c.idList, done: isDone, archived: !!c.closed });
+          var b = c.badges || {};
+          items.push({
+            id: id, name: c.name, list: ln, listId: c.idList, done: isDone, archived: !!c.closed,
+            due: c.due || null, dueComplete: !!c.dueComplete,
+            checkItems: b.checkItems || 0, checkItemsChecked: b.checkItemsChecked || 0,
+            members: c.members || [],
+          });
         });
 
         return { total: childIds.length, done: done, doneListId: doneListId, items: items, byList: byList };

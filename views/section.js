@@ -17,6 +17,25 @@
   function fit() { if (t.sizeTo) t.sizeTo(document.body); }
   function authed() { return Epic.getToken(t).then(function (tok) { return !!tok; }).catch(function () { return false; }); }
 
+  // ---- rich sub-task row (name + checklist + due + column + assignees) ----
+  var MON = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+  function fmtDate(iso) { try { var d = new Date(iso); return d.getDate() + ' ' + MON[d.getMonth()]; } catch (e) { return ''; } }
+  function hue(id) { var h = 0, str = String(id); for (var i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0; return h % 360; }
+  function avatarHtml(m) {
+    var ini = ((m.initials || (m.fullName || m.username || '?')) + '').slice(0, 2).toUpperCase();
+    return '<span class="av" title="' + Views.esc(m.fullName || m.username || '') + '" style="background:hsl(' + hue(m.id) + ',55%,52%)">' + Views.esc(ini) + '</span>';
+  }
+  function subRow(it) {
+    var meta = '';
+    if (it.checkItems) meta += '<span class="pill ' + (it.checkItemsChecked === it.checkItems ? 'done' : '') + '">☑ ' + it.checkItemsChecked + '/' + it.checkItems + '</span>';
+    if (it.due) meta += '<span class="pill ' + (it.dueComplete ? 'done' : '') + '">🕐 ' + fmtDate(it.due) + '</span>';
+    meta += '<span class="pill ' + (it.done ? 'done' : '') + '">' + Views.esc(it.list) + '</span>';
+    var avs = (it.members || []).slice(0, 4).map(avatarHtml).join('');
+    return '<button class="sub ' + (it.archived ? 'archived' : '') + '" data-id="' + it.id + '">' +
+      '<div class="name">' + Views.esc(it.name) + (it.archived ? ' 📦' : '') + '</div>' +
+      '<div class="meta">' + meta + (avs ? '<span class="avs">' + avs + '</span>' : '') + '</div></button>';
+  }
+
   function doAuthorize(onDone) {
     var ret = location.href.replace(/[^/]*$/, '') + 'auth-return.html';
     var u = 'https://trello.com/1/authorize?expiration=never&scope=read,write&name=Duck%20Epics' +
@@ -84,7 +103,7 @@
   function renderParent(cardId) {
     // Fetch cards/lists once; only hit REST for archived if a child is missing
     // from the active set (big speed win on large boards).
-    return Promise.all([t.cards('id', 'name', 'idList', 'closed'), t.lists('id', 'name'), Epic.getChildren(t, cardId), Epic.getIcon(t, cardId)])
+    return Promise.all([t.cards('id', 'name', 'idList', 'closed', 'due', 'dueComplete', 'badges', 'members'), t.lists('id', 'name'), Epic.getChildren(t, cardId), Epic.getIcon(t, cardId)])
       .then(function (r0) {
         var active = r0[0], lists = r0[1], childIds = r0[2], icon = r0[3];
         var have = {}; active.forEach(function (c) { have[c.id] = 1; });
@@ -97,11 +116,7 @@
       .then(function (r) {
         var s = r[0], icon = r[1];
         var pct = s.total ? Math.round(100 * s.done / s.total) : 0;
-        var rows = s.items.map(function (it) {
-          return '<button class="item ' + (it.archived ? 'archived' : '') + '" data-id="' + it.id + '">' +
-            '<span class="name">' + Views.esc(it.name) + (it.archived ? ' 📦' : '') + '</span>' +
-            '<span class="pill ' + (it.done ? 'done' : '') + '">' + Views.esc(it.list) + '</span></button>';
-        }).join('');
+        var rows = s.items.map(subRow).join('');
         if (!s.total) rows = '<p class="muted small">Пока нет подзадач — «+ Sub-task» создаст новую, «🔗 Привязать» добавит существующую.</p>';
 
         root.innerHTML =
@@ -114,7 +129,7 @@
           '<button class="btn" id="un">Unmark</button></div>' +
           '<div class="list">' + rows + '</div>';
 
-        root.querySelectorAll('.list .item').forEach(function (el) {
+        root.querySelectorAll('.list .sub').forEach(function (el) {
           el.addEventListener('click', function () { t.showCard(el.getAttribute('data-id')); });
         });
         document.getElementById('ic').addEventListener('click', function () { showIconPicker(cardId); });

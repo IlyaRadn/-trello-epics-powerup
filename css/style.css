@@ -25,6 +25,22 @@ body {
 .pill { font-size: 11px; padding: 1px 7px; border-radius: 10px; background: var(--bg); color: var(--sub); white-space: nowrap; }
 .pill.done { background: var(--green-bg); color: var(--green); }
 
+/* rich sub-task row */
+.sub {
+  display: flex; flex-direction: column; align-items: stretch; gap: 3px; width: 100%;
+  text-align: left; background: #fff; border: 1px solid var(--line); border-radius: 6px;
+  padding: 7px 9px; cursor: pointer; font: inherit; color: inherit;
+}
+.sub:hover { background: var(--bg); }
+.sub.archived { opacity: .6; }
+.sub .name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sub .meta { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.avs { display: inline-flex; gap: 2px; margin-left: auto; }
+.av {
+  width: 20px; height: 20px; border-radius: 50%; color: #fff; font-size: 10px; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto;
+}
+
 /* progress */
 .progress { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .bar { flex: 1; height: 8px; background: var(--bg); border-radius: 5px; overflow: hidden; }
