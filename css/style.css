@@ -27,15 +27,20 @@ body {
 .pill { font-size: 11px; padding: 1px 7px; border-radius: 10px; background: var(--bg); color: var(--sub); white-space: nowrap; }
 .pill.done { background: var(--green-bg); color: var(--green); }
 
-/* move-to-column dropdown (on a white row) */
+/* move-to-column dropdown (on a white row) — fixed width so rows line up */
 select.move {
-  font-size: 11px; padding: 1px 18px 1px 7px; border: 1px solid var(--line); border-radius: 10px;
-  background: var(--bg); color: var(--sub); max-width: 150px; cursor: pointer; height: 20px;
-  -webkit-appearance: none; appearance: none;
+  font-size: 11px; padding: 2px 18px 2px 8px; border: 1px solid var(--line); border-radius: 10px;
+  background-color: var(--bg); color: var(--sub); width: 148px; height: 22px; cursor: pointer;
+  text-overflow: ellipsis; -webkit-appearance: none; appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10'%3E%3Cpath d='M2 3l3 3 3-3' stroke='%235e6c84' fill='none' stroke-width='1.5'/%3E%3C/svg%3E");
-  background-repeat: no-repeat; background-position: right 5px center;
+  background-repeat: no-repeat; background-position: right 6px center;
 }
 select.move.done { background-color: var(--green-bg); color: var(--green); }
+
+/* drag & drop */
+.sub[draggable="true"] { cursor: grab; }
+.sub.dragging { opacity: .45; }
+.grp.drop-hover { outline: 2px dashed var(--blue); outline-offset: 2px; border-radius: 8px; }
 
 /* column config checklist */
 .cols { display: flex; flex-direction: column; gap: 2px; margin: 6px 0; }

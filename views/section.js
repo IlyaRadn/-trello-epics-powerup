@@ -20,6 +20,7 @@
   var lastPaint = null; // {cardId,s,icon} so the toggle can repaint without refetch
   var STATUS_LISTS = []; // [{id,name}] workflow columns shown as move targets
   var ALL_LISTS = [];    // [{id,name}] every board list (for the ⚙ config)
+  var DRAG_ID = null;    // id of the sub-task currently being dragged
   var DBG = {};
   function debugFooter() { /* debug readout disabled; re-enable if diagnosing */ }
 
@@ -80,8 +81,8 @@
         '<button class="btn" data-open="' + Views.esc(it.url || '') + '">Open in new tab</button>' +
         '<button class="btn" data-unarch="' + it.id + '">Unarchive</button></div></div>';
     }
-    // A <div> (not <button>) so the inline <select> works.
-    return '<div class="sub" data-id="' + it.id + '" data-url="' + Views.esc(it.url || '') + '">' + inner + '</div>';
+    // A <div> (not <button>) so the inline <select> works; draggable for column moves.
+    return '<div class="sub" draggable="true" data-id="' + it.id + '" data-url="' + Views.esc(it.url || '') + '">' + inner + '</div>';
   }
 
   function doAuthorize(onDone) {
@@ -207,7 +208,8 @@
         var take = expandedList ? groups[ln] : groups[ln].slice(0, Math.max(0, CAP - shown));
         shown += take.length;
         if (!take.length) return '';
-        return '<div class="grp"><div class="grp-h">' + Views.esc(ln) + ' <span class="grp-n">' + groups[ln].length + '</span></div>' +
+        var lid = groups[ln][0] ? groups[ln][0].listId : '';
+        return '<div class="grp" data-list="' + lid + '"><div class="grp-h">' + Views.esc(ln) + ' <span class="grp-n">' + groups[ln].length + '</span></div>' +
           '<div class="list">' + take.map(subRow).join('') + '</div></div>';
       }).join('');
       if (activeCount > CAP) {
@@ -260,6 +262,27 @@
         sel.disabled = true;
         Epic.moveCard(t, sel.getAttribute('data-id'), sel.value).then(render)
           .catch(function (err) { sel.disabled = false; if (err && err.message === 'auth') doAuthorize(render); });
+      });
+    });
+    // Drag a sub-task onto a column group to change its status.
+    root.querySelectorAll('.sub[draggable="true"]').forEach(function (el) {
+      el.addEventListener('dragstart', function (e) {
+        DRAG_ID = el.getAttribute('data-id'); el.classList.add('dragging');
+        if (e.dataTransfer) { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', DRAG_ID); }
+      });
+      el.addEventListener('dragend', function () {
+        el.classList.remove('dragging'); DRAG_ID = null;
+        root.querySelectorAll('.grp').forEach(function (g) { g.classList.remove('drop-hover'); });
+      });
+    });
+    root.querySelectorAll('.grp[data-list]').forEach(function (g) {
+      g.addEventListener('dragover', function (e) { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'; g.classList.add('drop-hover'); });
+      g.addEventListener('dragleave', function (e) { if (!g.contains(e.relatedTarget)) g.classList.remove('drop-hover'); });
+      g.addEventListener('drop', function (e) {
+        e.preventDefault(); g.classList.remove('drop-hover');
+        var to = g.getAttribute('data-list'), id = DRAG_ID;
+        if (!id || !to) return;
+        Epic.moveCard(t, id, to).then(render).catch(function (err) { if (err && err.message === 'auth') doAuthorize(render); });
       });
     });
     debugFooter();
