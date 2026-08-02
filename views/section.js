@@ -18,6 +18,8 @@
   var painted = false; // once painted, re-renders keep old content (no "Загрузка" flicker)
   var expandedList = false; // subscription list: collapsed to 10 vs "view all"
   var lastPaint = null; // {cardId,s,icon} so the toggle can repaint without refetch
+  var STATUS_LISTS = []; // [{id,name}] workflow columns shown as move targets
+  var ALL_LISTS = [];    // [{id,name}] every board list (for the ⚙ config)
   var DBG = {};
   function debugFooter() { /* debug readout disabled; re-enable if diagnosing */ }
 
@@ -54,22 +56,32 @@
     var img = src ? '<img src="' + Views.esc(src) + '" onerror="this.remove()" alt="">' : '';
     return '<span class="av" title="' + name + '" style="background:hsl(' + hue(m.id) + ',55%,52%)">' + ini + img + '</span>';
   }
+  function colSelect(it) {
+    var opts = STATUS_LISTS.map(function (l) { return '<option value="' + l.id + '"' + (l.id === it.listId ? ' selected' : '') + '>' + Views.esc(l.name) + '</option>'; }).join('');
+    if (it.listId && !STATUS_LISTS.some(function (l) { return l.id === it.listId; })) {
+      opts = '<option value="' + it.listId + '" selected>' + Views.esc(it.list) + '</option>' + opts;
+    }
+    return '<select class="move' + (it.done ? ' done' : '') + '" data-id="' + it.id + '" title="Переместить в колонку">' + opts + '</select>';
+  }
   function subRow(it) {
     var meta = '';
     if (it.checkItems) meta += '<span class="pill ' + (it.checkItemsChecked === it.checkItems ? 'done' : '') + '">☑ ' + it.checkItemsChecked + '/' + it.checkItems + '</span>';
     if (it.due) meta += '<span class="pill ' + (it.dueComplete ? 'done' : '') + '">🕐 ' + fmtDate(it.due) + '</span>';
-    meta += '<span class="pill ' + (it.done ? 'done' : '') + '">' + Views.esc(it.list) + '</span>';
+    // Active rows get a column dropdown (move); archived keep a static pill.
+    meta += it.archived
+      ? '<span class="pill ' + (it.done ? 'done' : '') + '">' + Views.esc(it.list) + '</span>'
+      : colSelect(it);
     var avs = (it.members || []).slice(0, 4).map(avatarHtml).join('');
     var inner = '<div class="name">' + Views.esc(it.name) + (it.archived ? ' 📦' : '') + '</div>' +
       '<div class="meta">' + meta + (avs ? '<span class="avs">' + avs + '</span>' : '') + '</div>';
     if (it.archived) {
-      // Not a <button> (it holds its own action buttons).
       return '<div class="sub archived" data-id="' + it.id + '">' + inner +
         '<div class="actions" style="margin-top:6px">' +
         '<button class="btn" data-open="' + Views.esc(it.url || '') + '">Open in new tab</button>' +
         '<button class="btn" data-unarch="' + it.id + '">Unarchive</button></div></div>';
     }
-    return '<button class="sub" data-id="' + it.id + '" data-url="' + Views.esc(it.url || '') + '">' + inner + '</button>';
+    // A <div> (not <button>) so the inline <select> works.
+    return '<div class="sub" data-id="' + it.id + '" data-url="' + Views.esc(it.url || '') + '">' + inner + '</div>';
   }
 
   function doAuthorize(onDone) {
@@ -141,8 +153,11 @@
 
   // ---------- subscription (parent) ----------
   function renderParent(cardId) {
-    return Promise.all([Epic.getChildren(t, cardId), Epic.getIcon(t, cardId), t.lists('id', 'name')]).then(function (pre) {
-      var childIds = pre[0], icon = pre[1], lists = pre[2];
+    return Promise.all([Epic.getChildren(t, cardId), Epic.getIcon(t, cardId), t.lists('id', 'name'), Epic.getStatusLists(t)]).then(function (pre) {
+      var childIds = pre[0], icon = pre[1], lists = pre[2], statusCfg = pre[3];
+      ALL_LISTS = lists;
+      // Status columns = configured subset, or (default) all lists except the «Подписка» parent lists.
+      STATUS_LISTS = lists.filter(function (l) { return statusCfg ? statusCfg.indexOf(l.id) >= 0 : !/подписк/i.test(l.name); });
       // Stage 1 — minimal fields (fast): show the list immediately.
       return t.cards('id', 'name', 'idList', 'closed', 'url').then(function (active) {
         var have = {}; active.forEach(function (c) { have[c.id] = 1; });
@@ -211,7 +226,8 @@
       '<div class="toolbar"><button class="iconbtn" id="ic" title="Значок">' + icon + '</button>' +
       '<button class="btn primary" id="new">+ Sub-task</button>' +
       '<button class="btn" id="link">🔗 Привязать</button>' +
-      '<button class="btn" id="un">Unmark</button></div>' + body;
+      '<button class="btn" id="un">Unmark</button>' +
+      '<button class="iconbtn" id="cols" title="Настроить колонки">⚙</button></div>' + body;
 
     root.querySelectorAll('.sub').forEach(function (el) {
       if (el.classList.contains('archived')) return; // archived rows use their own buttons
@@ -232,9 +248,40 @@
     document.getElementById('new').addEventListener('click', function () { showCreateForm(cardId); });
     document.getElementById('link').addEventListener('click', function () { showLinkExisting(cardId); });
     document.getElementById('un').addEventListener('click', function () { Epic.unmakeSubscription(t, cardId).then(render); });
+    document.getElementById('cols').addEventListener('click', function () { showColumnsConfig(cardId); });
     var tg = document.getElementById('toggleList');
     if (tg) tg.addEventListener('click', function () { expandedList = !expandedList; paintParent(lastPaint.cardId, lastPaint.s, lastPaint.icon); });
+    // Move-to-column dropdown on each active row.
+    root.querySelectorAll('select.move').forEach(function (sel) {
+      sel.addEventListener('mousedown', function (e) { e.stopPropagation(); });
+      sel.addEventListener('click', function (e) { e.stopPropagation(); });
+      sel.addEventListener('change', function (e) {
+        e.stopPropagation();
+        sel.disabled = true;
+        Epic.moveCard(t, sel.getAttribute('data-id'), sel.value).then(render)
+          .catch(function (err) { sel.disabled = false; if (err && err.message === 'auth') doAuthorize(render); });
+      });
+    });
     debugFooter();
+  }
+
+  function showColumnsConfig(cardId) {
+    busy = true;
+    var current = {}; STATUS_LISTS.forEach(function (l) { current[l.id] = 1; });
+    var rows = ALL_LISTS.map(function (l) {
+      return '<label><input type="checkbox" value="' + l.id + '"' + (current[l.id] ? ' checked' : '') + '> ' + Views.esc(l.name) + '</label>';
+    }).join('');
+    root.innerHTML = backBar() +
+      '<p class="small muted">Отметьте колонки-статусы — только в них можно перемещать подзадачи:</p>' +
+      '<div class="cols">' + rows + '</div>' +
+      '<div class="actions"><button class="btn primary" id="save">Сохранить</button></div>';
+    wireBack();
+    document.getElementById('save').addEventListener('click', function () {
+      var ids = [];
+      root.querySelectorAll('.cols input:checked').forEach(function (c) { ids.push(c.value); });
+      Epic.setStatusLists(t, ids).then(render);
+    });
+    fit();
   }
 
   function showCreateForm(cardId) {
@@ -269,8 +316,15 @@
   function showLinkExisting(parentId) {
     busy = true;
     root.innerHTML = '<p class="muted small">Загрузка карточек…</p>';
-    Promise.all([t.cards('id', 'name', 'idList'), t.lists('id', 'name'), Epic.getChildren(t, parentId)]).then(function (r) {
-      var cards = r[0], lists = r[1], existing = r[2];
+    t.board('id').then(function (b) {
+      return Promise.all([
+        Epic.fetchBoardCards(t, b.id),         // all cards via REST (or null)
+        t.cards('id', 'name', 'idList'),       // fallback: client-loaded cards
+        t.lists('id', 'name'),
+        Epic.getChildren(t, parentId),
+      ]);
+    }).then(function (r) {
+      var cards = r[0] || r[1], lists = r[2], existing = r[3];
       var listName = {}; lists.forEach(function (l) { listName[l.id] = l.name; });
       var taken = {}; existing.forEach(function (id) { taken[id] = 1; }); taken[parentId] = 1;
       var allCandidates = cards.filter(function (c) { return !taken[c.id]; });

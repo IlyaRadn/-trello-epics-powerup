@@ -27,6 +27,22 @@ body {
 .pill { font-size: 11px; padding: 1px 7px; border-radius: 10px; background: var(--bg); color: var(--sub); white-space: nowrap; }
 .pill.done { background: var(--green-bg); color: var(--green); }
 
+/* move-to-column dropdown (on a white row) */
+select.move {
+  font-size: 11px; padding: 1px 18px 1px 7px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--bg); color: var(--sub); max-width: 150px; cursor: pointer; height: 20px;
+  -webkit-appearance: none; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10'%3E%3Cpath d='M2 3l3 3 3-3' stroke='%235e6c84' fill='none' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 5px center;
+}
+select.move.done { background-color: var(--green-bg); color: var(--green); }
+
+/* column config checklist */
+.cols { display: flex; flex-direction: column; gap: 2px; margin: 6px 0; }
+.cols label { display: flex; align-items: center; gap: 8px; font-weight: 400; font-size: 13px; margin: 0; padding: 5px 7px; border-radius: 6px; cursor: pointer; color: var(--panel-text); }
+.cols label:hover { background: rgba(255, 255, 255, .45); }
+.cols input { width: auto; }
+
 /* rich sub-task row (white card on the dark panel) */
 .sub {
   display: flex; flex-direction: column; align-items: stretch; gap: 3px; width: 100%;

@@ -100,6 +100,31 @@
       });
     },
 
+    // Move a card to another list (change its status column). Needs REST auth.
+    moveCard: function (t, id, idList) {
+      return Epic.getToken(t).then(function (token) {
+        if (!token || !Epic.APP_KEY) throw new Error('auth');
+        var qs = 'idList=' + encodeURIComponent(idList) + '&key=' + encodeURIComponent(Epic.APP_KEY) + '&token=' + encodeURIComponent(token);
+        return fetch('https://api.trello.com/1/cards/' + id + '?' + qs, { method: 'PUT' })
+          .then(function (r) { if (!r.ok) throw new Error('rest ' + r.status); return true; });
+      });
+    },
+
+    // Which board lists count as workflow "status" columns (move targets). null = not configured.
+    getStatusLists: function (t) { return Epic._get(t, 'sub:statusLists', null); },
+    setStatusLists: function (t, ids) { return Epic._set(t, 'sub:statusLists', ids); },
+
+    // All active cards on the board via REST — t.cards() only returns the cards Trello
+    // has lazy-loaded into the client (~first dozens on big boards). Null if not authorized.
+    fetchBoardCards: function (t, boardId) {
+      return Epic.getToken(t).then(function (token) {
+        if (!token || !Epic.APP_KEY) return null;
+        var qs = 'filter=open&fields=name,idList&key=' + encodeURIComponent(Epic.APP_KEY) + '&token=' + encodeURIComponent(token);
+        return fetch('https://api.trello.com/1/boards/' + boardId + '/cards?' + qs)
+          .then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; });
+      });
+    },
+
     // Fetch specific cards by id via REST (used for the few archived sub-tasks) —
     // WAY faster than pulling every closed card on the board. id->{name,idList,closed,url}.
     fetchArchivedByIds: function (t, ids) {
