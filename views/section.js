@@ -99,9 +99,9 @@
     meta += it.archived
       ? '<span class="pill ' + (it.done ? 'done' : '') + '">' + Views.esc(it.list) + '</span>'
       : colSelect(it);
-    var avs = (it.members || []).slice(0, 4).map(avatarHtml).join('');
+    var avs = (it.members || []).slice(0, 3).map(avatarHtml).join('');
     var inner = '<div class="name">' + Views.esc(it.name) + (it.archived ? ' 📦' : '') + '</div>' +
-      '<div class="meta">' + meta + (avs ? '<span class="avs">' + avs + '</span>' : '') + '</div>';
+      '<div class="meta">' + meta + '<span class="avs">' + avs + '</span></div>';
     if (it.archived) {
       return '<div class="sub archived" data-id="' + it.id + '">' + inner +
         '<div class="actions" style="margin-top:6px">' +

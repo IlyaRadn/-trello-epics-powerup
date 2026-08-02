@@ -27,12 +27,12 @@ body {
 .pill { font-size: 11px; height: 24px; padding: 0 8px; border-radius: 6px; background: var(--bg); color: var(--sub); white-space: nowrap; display: inline-flex; align-items: center; gap: 3px; }
 .pill.done { background: var(--green-bg); color: var(--green); }
 
-/* move-to-column dropdown — a real white control (distinct from the grey chips),
-   pushed to the right so the row reads: chips … [status ▼] [avatars]. */
+/* move-to-column dropdown — a real white control (distinct from the grey chips).
+   Sits in a fixed grid column so every row's dropdown lines up vertically. */
 select.move {
   font-size: 11px; padding: 0 22px 0 9px; border: 1px solid var(--line); border-radius: 6px;
-  background-color: #fff; color: var(--ink); width: 140px; height: 24px; cursor: pointer;
-  margin-left: auto; text-overflow: ellipsis; -webkit-appearance: none; appearance: none;
+  background-color: #fff; color: var(--ink); width: 132px; height: 24px; cursor: pointer; flex: 0 0 132px;
+  text-overflow: ellipsis; -webkit-appearance: none; appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10'%3E%3Cpath d='M2 3l3 3 3-3' stroke='%235e6c84' fill='none' stroke-width='1.5'/%3E%3C/svg%3E");
   background-repeat: no-repeat; background-position: right 7px center;
 }
@@ -59,15 +59,18 @@ select.move.done { background-color: var(--green-bg); color: var(--green); borde
 .sub:hover { background: var(--bg); }
 .sub.archived { opacity: .8; }
 .sub .name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sub .meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-height: 24px; }
-.avs { display: inline-flex; gap: 2px; align-items: center; }
-/* archived rows have no status control, so push their avatars to the right */
-.sub.archived .avs { margin-left: auto; }
+/* Meta row packs to the RIGHT (no empty gap in the middle): chips → status → avatar.
+   Status (132px) and the avatar zone (24px) are fixed, so those columns line up
+   vertically across every row regardless of how many chips a row has. */
+.sub .meta { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; min-height: 24px; }
+.avs { display: inline-flex; align-items: center; justify-content: flex-end; gap: 0; width: 24px; flex: 0 0 24px; }
 .av {
-  position: relative; overflow: hidden;
+  position: relative; overflow: hidden; margin-left: -8px;
   width: 22px; height: 22px; border-radius: 50%; color: #fff; font-size: 10px; font-weight: 700;
+  box-shadow: 0 0 0 2px #fff;
   display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto;
 }
+.av:first-child { margin-left: 0; }
 .av img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 /* keep the photo on hover; the name shows via the native title tooltip */
 
