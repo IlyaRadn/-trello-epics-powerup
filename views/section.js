@@ -92,16 +92,15 @@
     return '<select class="move' + (it.done ? ' done' : '') + '" data-id="' + it.id + '" title="Переместить в колонку">' + opts + '</select>';
   }
   function subRow(it) {
-    var meta = '';
-    if (it.checkItems) meta += '<span class="pill ' + (it.checkItemsChecked === it.checkItems ? 'done' : '') + '">☑ ' + it.checkItemsChecked + '/' + it.checkItems + '</span>';
-    if (it.due) meta += '<span class="pill ' + (it.dueComplete ? 'done' : '') + '">🕐 ' + fmtDate(it.due) + '</span>';
-    // Active rows get a column dropdown (move); archived keep a static pill.
-    meta += it.archived
-      ? '<span class="pill ' + (it.done ? 'done' : '') + '">' + Views.esc(it.list) + '</span>'
-      : colSelect(it);
+    var chips = '';
+    if (it.checkItems) chips += '<span class="pill ' + (it.checkItemsChecked === it.checkItems ? 'done' : '') + '">☑ ' + it.checkItemsChecked + '/' + it.checkItems + '</span>';
+    if (it.due) chips += '<span class="pill ' + (it.dueComplete ? 'done' : '') + '">🕐 ' + fmtDate(it.due) + '</span>';
+    if (it.archived) chips += '<span class="pill ' + (it.done ? 'done' : '') + '">' + Views.esc(it.list) + '</span>';
+    // Active rows get a column dropdown (move); archived keep a static pill (in chips).
+    var control = it.archived ? '' : colSelect(it);
     var avs = (it.members || []).slice(0, 3).map(avatarHtml).join('');
     var inner = '<div class="name">' + Views.esc(it.name) + (it.archived ? ' 📦' : '') + '</div>' +
-      '<div class="meta">' + meta + '<span class="avs">' + avs + '</span></div>';
+      '<div class="meta"><span class="chips">' + chips + '</span>' + control + '<span class="avs">' + avs + '</span></div>';
     if (it.archived) {
       return '<div class="sub archived" data-id="' + it.id + '">' + inner +
         '<div class="actions" style="margin-top:6px">' +
