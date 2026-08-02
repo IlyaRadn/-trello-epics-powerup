@@ -14,6 +14,17 @@
   var busy = false;
   var LIMIT = 30;
   var MEMBER_AVATARS = {}; // memberId -> avatarUrl (from REST, cached across renders)
+  var DBG = {};
+  function debugFooter() {
+    if (!root) return;
+    var el = document.createElement('p');
+    el.className = 'small muted';
+    el.style.cssText = 'opacity:.5;margin-top:10px;font-family:monospace';
+    el.textContent = 'DBG v19 · card ' + String(DBG.card).slice(-5) + ' · sub=' + (!!DBG.sub) +
+      ' · parent=' + (DBG.parent ? String(DBG.parent).slice(-5) : '—') +
+      ' · token=' + (DBG.token ? 'yes' : 'no') + ' · avatars=' + Object.keys(MEMBER_AVATARS).length;
+    root.appendChild(el);
+  }
 
   function fit() { if (t.sizeTo) t.sizeTo(document.body); }
   function authed() { return Epic.getToken(t).then(function (tok) { return !!tok; }).catch(function () { return false; }); }
@@ -71,7 +82,8 @@
     root.innerHTML = '<p class="muted small">Загрузка…</p>';
     return t.card('id').then(function (c) {
       var cardId = c.id;
-      return Promise.all([Epic.isSubscription(t, cardId), Epic.getParent(t, cardId)]).then(function (r) {
+      return Promise.all([Epic.isSubscription(t, cardId), Epic.getParent(t, cardId), Epic.getToken(t)]).then(function (r) {
+        DBG = { card: cardId, sub: r[0], parent: r[1], token: !!r[2] };
         if (r[0]) return renderParent(cardId);
         if (r[1]) return renderChild(cardId, r[1]);
         return renderNone(cardId);
@@ -94,6 +106,7 @@
       '<button class="btn" id="at">Attach to Subscription</button></div>';
     document.getElementById('mk').addEventListener('click', function () { Epic.makeSubscription(t, cardId).then(render); });
     document.getElementById('at').addEventListener('click', function () { showAttach(cardId); });
+    debugFooter();
   }
 
   function showAttach(cardId) {
@@ -171,6 +184,7 @@
     document.getElementById('new').addEventListener('click', function () { showCreateForm(cardId); });
     document.getElementById('link').addEventListener('click', function () { showLinkExisting(cardId); });
     document.getElementById('un').addEventListener('click', function () { Epic.unmakeSubscription(t, cardId).then(render); });
+    debugFooter();
   }
 
   function showCreateForm(cardId) {
@@ -263,6 +277,7 @@
         '<div class="actions"><button class="btn danger" id="de">Detach</button></div>';
       root.querySelector('.item').addEventListener('click', function () { t.showCard(parentId); });
       document.getElementById('de').addEventListener('click', function () { Epic.detach(t, cardId).then(render); });
+      debugFooter();
     });
   }
 
