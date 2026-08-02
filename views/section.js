@@ -439,14 +439,21 @@
     t.board('id').then(function (b) { return Epic.fetchMembers(t, b.id); }).then(function (map) {
       var members = Object.keys(map).map(function (id) { return map[id]; });
       members.sort(function (a, b2) { return (a.fullName || a.username || '').localeCompare(b2.fullName || b2.username || ''); });
-      function paint() {
-        var rows = members.map(function (m) {
+      root.innerHTML = backBar() +
+        '<label>Исполнители подзадачи</label>' +
+        '<input type="text" id="mflt" placeholder="Поиск по имени…" autocomplete="off">' +
+        '<div class="list" id="mlist"></div>';
+      document.getElementById('cx').addEventListener('click', function () { changed ? render() : backToList(cardId); });
+      var flt = document.getElementById('mflt');
+      // Rebuild only the list (the search box stays, keeping focus/value on input).
+      function paintList() {
+        var q = flt.value.toLowerCase();
+        var shown = members.filter(function (m) { return ((m.fullName || '') + ' ' + (m.username || '')).toLowerCase().indexOf(q) >= 0; });
+        document.getElementById('mlist').innerHTML = shown.map(function (m) {
           return '<button class="item member' + (assigned[m.id] ? ' selected' : '') + '" data-id="' + m.id + '">' +
             avatarHtml(m) + '<span class="name">' + Views.esc(m.fullName || m.username || m.id) + '</span>' +
-            (assigned[m.id] ? '<span class="pill done">✓</span>' : '') + '</button>';
-        }).join('') || '<p class="muted small">Участники не найдены.</p>';
-        root.innerHTML = backBar() + '<p class="small muted">Исполнители подзадачи:</p><div class="list">' + rows + '</div>';
-        document.getElementById('cx').addEventListener('click', function () { changed ? render() : backToList(cardId); });
+            '<span class="pill done mchk"' + (assigned[m.id] ? '' : ' style="visibility:hidden"') + '>✓</span></button>';
+        }).join('') || '<p class="muted small">Никого не найдено.</p>';
         root.querySelectorAll('.member').forEach(function (el) {
           el.addEventListener('click', function () {
             var id = el.getAttribute('data-id');
@@ -456,12 +463,15 @@
             (now ? Epic.addMember(t, cardId, id) : Epic.removeMember(t, cardId, id))
               .then(function () { lastSelfWrite = Date.now(); })
               .catch(function (err) { if (err && err.message === 'auth') doAuthorize(function () {}); });
-            paint();
+            el.classList.toggle('selected', now);
+            var chk = el.querySelector('.mchk'); if (chk) chk.style.visibility = now ? 'visible' : 'hidden';
           });
         });
         fit();
       }
-      paint();
+      flt.addEventListener('input', paintList);
+      flt.focus();
+      paintList();
     }).catch(function () {
       root.innerHTML = backBar() + '<p class="small" style="color:#bf2600">Не удалось загрузить участников.</p>';
       document.getElementById('cx').addEventListener('click', function () { render(); });
