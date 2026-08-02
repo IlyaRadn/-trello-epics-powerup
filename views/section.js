@@ -16,6 +16,8 @@
   var MEMBER_AVATARS = {}; // memberId -> avatarUrl (from REST, cached across renders)
   var lastRendered = null; // id of the card we last rendered for (navigation watch)
   var painted = false; // once painted, re-renders keep old content (no "Загрузка" flicker)
+  var expandedList = false; // subscription list: collapsed to 10 vs "view all"
+  var lastPaint = null; // {cardId,s,icon} so the toggle can repaint without refetch
   var DBG = {};
   function debugFooter() { /* debug readout disabled; re-enable if diagnosing */ }
 
@@ -168,6 +170,7 @@
   }
 
   function paintParent(cardId, s, icon) {
+    lastPaint = { cardId: cardId, s: s, icon: icon };
     var pct = s.total ? Math.round(100 * s.done / s.total) : 0;
     var body;
     if (!s.total) {
@@ -180,10 +183,22 @@
         if (!groups[it.list]) { groups[it.list] = []; order.push(it.list); }
         groups[it.list].push(it);
       });
+      // Collapse the active list to the first 10 rows unless "view all" is on.
+      var CAP = 10;
+      var activeCount = order.reduce(function (n, ln) { return n + groups[ln].length; }, 0);
+      var shown = 0;
       body = order.map(function (ln) {
+        if (!expandedList && shown >= CAP) return '';
+        var take = expandedList ? groups[ln] : groups[ln].slice(0, Math.max(0, CAP - shown));
+        shown += take.length;
+        if (!take.length) return '';
         return '<div class="grp"><div class="grp-h">' + Views.esc(ln) + ' <span class="grp-n">' + groups[ln].length + '</span></div>' +
-          '<div class="list">' + groups[ln].map(subRow).join('') + '</div></div>';
+          '<div class="list">' + take.map(subRow).join('') + '</div></div>';
       }).join('');
+      if (activeCount > CAP) {
+        body += '<div class="actions" style="margin-top:10px"><button class="btn" id="toggleList">' +
+          (expandedList ? 'Show fewer children' : 'View all children (' + activeCount + ')') + '</button></div>';
+      }
       if (archived.length) {
         body += '<div class="grp"><div class="grp-h">📦 Архив <span class="grp-n">' + archived.length + '</span></div>' +
           '<div class="list">' + archived.map(subRow).join('') + '</div></div>';
@@ -217,6 +232,8 @@
     document.getElementById('new').addEventListener('click', function () { showCreateForm(cardId); });
     document.getElementById('link').addEventListener('click', function () { showLinkExisting(cardId); });
     document.getElementById('un').addEventListener('click', function () { Epic.unmakeSubscription(t, cardId).then(render); });
+    var tg = document.getElementById('toggleList');
+    if (tg) tg.addEventListener('click', function () { expandedList = !expandedList; paintParent(lastPaint.cardId, lastPaint.s, lastPaint.icon); });
     debugFooter();
   }
 
@@ -256,34 +273,41 @@
       var cards = r[0], lists = r[1], existing = r[2];
       var listName = {}; lists.forEach(function (l) { listName[l.id] = l.name; });
       var taken = {}; existing.forEach(function (id) { taken[id] = 1; }); taken[parentId] = 1;
-      var candidates = cards.filter(function (c) { return !taken[c.id]; });
+      var allCandidates = cards.filter(function (c) { return !taken[c.id]; });
+      var PAGE = 10;
+      var shownN = PAGE;
+      var current = allCandidates;
 
-      function rowHtml(list) {
-        var html = list.slice(0, LIMIT).map(function (c) {
+      function paint() {
+        var html = current.slice(0, shownN).map(function (c) {
           return '<button class="item" data-id="' + c.id + '"><span class="name">' + Views.esc(c.name) + '</span><span class="pill">' + Views.esc(listName[c.idList] || '') + '</span></button>';
-        }).join('');
-        if (list.length > LIMIT) html += '<p class="muted small">…показаны первые ' + LIMIT + '. Уточните поиском.</p>';
-        return html || '<p class="muted small">Ничего не найдено.</p>';
-      }
-      function bind() {
+        }).join('') || '<p class="muted small">Ничего не найдено.</p>';
+        if (current.length > shownN) {
+          html += '<div class="actions" style="margin-top:8px"><button class="btn" id="more">Показать ещё (' + (current.length - shownN) + ')</button></div>';
+        }
+        document.getElementById('cand').innerHTML = html;
         root.querySelectorAll('#cand .item').forEach(function (el) {
           el.addEventListener('click', function () { Epic.setParent(t, el.getAttribute('data-id'), parentId).then(render).catch(function () { render(); }); });
         });
+        var m = document.getElementById('more');
+        if (m) m.addEventListener('click', function () { shownN += PAGE; paint(); });
+        fit();
       }
 
       root.innerHTML = backBar() +
         '<label>Привязать существующую карточку</label>' +
         '<input type="text" id="flt" placeholder="Поиск по названию…" autocomplete="off">' +
-        '<div class="list" id="cand">' + rowHtml(candidates) + '</div>';
-      wireBack(); bind();
+        '<div class="list" id="cand"></div>';
+      wireBack();
       var flt = document.getElementById('flt');
       flt.addEventListener('input', function () {
         var q = flt.value.toLowerCase();
-        document.getElementById('cand').innerHTML = rowHtml(candidates.filter(function (c) { return (c.name || '').toLowerCase().indexOf(q) >= 0; }));
-        bind(); fit();
+        current = allCandidates.filter(function (c) { return (c.name || '').toLowerCase().indexOf(q) >= 0; });
+        shownN = PAGE;
+        paint();
       });
       flt.focus();
-      fit();
+      paint();
     });
   }
 
