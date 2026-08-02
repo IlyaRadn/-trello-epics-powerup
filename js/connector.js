@@ -15,11 +15,9 @@
 
   var ICON = url('assets/icon.svg');
 
-  // Compute a Subscription's stats, pulling archived cards via REST when authorized.
+  // Fast stats for badges: active cards only (Trello-cached), no REST per badge.
   function statsFor(t, cardId) {
-    return t.board('id')
-      .then(function (b) { return Epic.fetchArchived(t, b.id); })
-      .then(function (archived) { return Epic.computeStats(t, cardId, { archivedById: archived }); });
+    return Epic.computeStats(t, cardId);
   }
 
   // Never let a REST-auth check break the buttons: default to "authorized".
@@ -74,9 +72,10 @@
       return t.card('id').then(function (c) {
         return Epic.isSubscription(t, c.id).then(function (isSub) {
           if (isSub) {
-            return statsFor(t, c.id).then(function (s) {
-              if (!s.total) return [];
-              return [{ text: '☑ ' + s.done + '/' + s.total, color: s.done === s.total ? 'green' : 'blue' }];
+            return Promise.all([statsFor(t, c.id), Epic.getIcon(t, c.id)]).then(function (rr) {
+              var s = rr[0], icon = rr[1];
+              var text = s.total ? (icon + ' ' + s.done + '/' + s.total + ' done') : icon;
+              return [{ text: text, color: (s.total && s.done === s.total) ? 'green' : null }];
             });
           }
           return Epic.getParent(t, c.id).then(function (p) {
