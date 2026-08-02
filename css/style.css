@@ -34,6 +34,11 @@ body {
 .pill.due-edit.empty { color: var(--sub); opacity: .7; }
 .due-ovl { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; border: 0; padding: 0; margin: 0; cursor: pointer; }
 .due-ovl::-webkit-calendar-picker-indicator { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; opacity: 0; cursor: pointer; }
+/* deadline flavour */
+.pill.overdue { background: #ffebe6; color: #bf2600; }
+.pill.overdue:hover { background: #ffd6cc; }
+.pill.soon { background: #fff0b3; color: #974f0c; }
+.pill.soon:hover { background: #ffe380; }
 
 /* move-to-column dropdown — a real white control (distinct from the grey chips),
    on its own line, left-aligned (same vertical scheme as the archived rows). */
@@ -71,6 +76,16 @@ select.move.done { background-color: var(--green-bg); color: var(--green); borde
 .sub .name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .toprow { display: flex; align-items: center; gap: 8px; }
 .toprow .name { flex: 1 1 auto; min-width: 0; }
+/* ✓ done-toggle (round checkbox left of the name) */
+.check { flex: 0 0 auto; width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--line); background: #fff; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+.check:hover { border-color: var(--green); }
+.check.on { background: var(--green); border-color: var(--green); }
+.check.on::after { content: '✓'; color: #fff; font-size: 11px; line-height: 1; font-weight: 700; }
+/* clickable avatar cell (assign members) */
+.avs-edit { cursor: pointer; }
+.av-add { width: 22px; height: 22px; border-radius: 50%; border: 1px dashed var(--line); color: var(--sub); display: inline-flex; align-items: center; justify-content: center; font-size: 14px; line-height: 1; }
+.avs-edit:hover .av-add { border-color: var(--blue); color: var(--blue); }
+.member .name { flex: 1; }
 .sub .meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .chips { display: flex; flex-direction: row; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
 .ctl { display: flex; }

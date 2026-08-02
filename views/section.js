@@ -21,6 +21,7 @@
   var STATUS_LISTS = []; // [{id,name}] workflow columns shown as move targets
   var ALL_LISTS = [];    // [{id,name}] every board list (for the ⚙ config)
   var DRAG_ID = null;    // id of the sub-task currently being dragged
+  var DONE_LIST_ID = null; // id of the «Completed Tasks» list (for the ✓ toggle)
   var lastSelfWrite = 0; // timestamp of our last optimistic REST write (move/due) — used
                          // to suppress Trello's t.render churn that would otherwise rebuild
                          // the DOM mid-interaction (e.g. close a just-opened date picker).
@@ -145,23 +146,40 @@
     }
 
     // ---- active row: SAME vertical scheme as archive ----
-    // line 1: name (+ avatar pinned right)   line 2: date+checklist chips   line 3: status dropdown
+    // line 1: ✓ done-toggle + name (+ avatar pinned right)   line 2: chips   line 3: status
     var dueLabel = it.due ? '🕐 ' + fmtDate(it.due) : '📅 дата';
     // A transparent native date input overlays the pill; its calendar-picker-indicator
     // is stretched to fill it (see CSS), so a direct click on the pill opens the native
     // date picker — works inside Trello's cross-origin iframe where showPicker() is blocked.
     var dueVal = isoToInputVal(it.due);
-    var chips = '<span class="pill due-edit' + (it.dueComplete ? ' done' : '') + (it.due ? '' : ' empty') + '" title="Изменить дату">' +
+    var chips = '<span class="pill due-edit' + (it.dueComplete ? ' done' : '') + dueClass(it) + (it.due ? '' : ' empty') + '" title="Изменить дату">' +
       dueLabel +
       '<input type="date" class="due-ovl" data-due-id="' + it.id + '" data-due="' + (it.due || '') + '"' + (dueVal ? ' value="' + dueVal + '"' : '') + '></span>';
     if (it.checkItems) chips += '<span class="pill ' + (it.checkItemsChecked === it.checkItems ? 'done' : '') + '">☑ ' + it.checkItemsChecked + '/' + it.checkItems + '</span>';
 
+    var check = '<span class="check' + (it.done ? ' on' : '') + '" data-id="' + it.id + '" title="' + (it.done ? 'Снять «готово»' : 'Отметить готовой') + '"></span>';
+    var avsCell = '<span class="avs avs-edit" data-id="' + it.id + '" title="Исполнитель">' + (avs || '<span class="av-add">+</span>') + '</span>';
     var inner =
-      '<div class="toprow">' + nameHtml + (avs ? '<span class="avs">' + avs + '</span>' : '') + '</div>' +
+      '<div class="toprow">' + check + nameHtml + avsCell + '</div>' +
       '<div class="meta"><span class="chips">' + chips + '</span></div>' +
       '<div class="ctl">' + colSelect(it) + '</div>';
     // A <div> (not <button>) so the inline <select> works; draggable for column moves.
     return '<div class="sub" draggable="true" data-id="' + it.id + '" data-url="' + Views.esc(it.url || '') + '">' + inner + '</div>';
+  }
+
+  // Deadline flavour for an active (not-yet-done) due chip: overdue = red, soon = amber.
+  function dueClass(it) {
+    if (!it.due || it.dueComplete || it.done) return '';
+    var ts = new Date(it.due).getTime();
+    if (isNaN(ts)) return '';
+    var now = Date.now();
+    if (ts < now) return ' overdue';
+    if (ts - now < 48 * 3600 * 1000) return ' soon';
+    return '';
+  }
+  function firstOpenListId() {
+    for (var i = 0; i < STATUS_LISTS.length; i++) { if (STATUS_LISTS[i].id !== DONE_LIST_ID) return STATUS_LISTS[i].id; }
+    return null;
   }
 
   function doAuthorize(onDone) {
@@ -236,6 +254,7 @@
     return Promise.all([Epic.getChildren(t, cardId), Epic.getIcon(t, cardId), t.lists('id', 'name'), Epic.getStatusLists(t)]).then(function (pre) {
       var childIds = pre[0], icon = pre[1], lists = pre[2], statusCfg = pre[3];
       ALL_LISTS = lists;
+      DONE_LIST_ID = Epic.findDoneListId(lists);
       // Status columns = configured subset, or (default) all lists except the «Подписка» parent lists.
       STATUS_LISTS = lists.filter(function (l) { return statusCfg ? statusCfg.indexOf(l.id) >= 0 : !/подписк/i.test(l.name); });
       // Stage 1 — minimal fields (fast): show the list immediately.
@@ -332,6 +351,21 @@
     document.getElementById('cols').addEventListener('click', function () { showColumnsConfig(cardId); });
     var tg = document.getElementById('toggleList');
     if (tg) tg.addEventListener('click', function () { expandedList = !expandedList; paintParent(lastPaint.cardId, lastPaint.s, lastPaint.icon); });
+    // ✓ toggle: mark done (move to Completed Tasks) or reopen (first open status list).
+    root.querySelectorAll('.check').forEach(function (el) {
+      el.addEventListener('mousedown', function (e) { e.stopPropagation(); });
+      el.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var id = el.getAttribute('data-id');
+        var target = el.classList.contains('on') ? firstOpenListId() : DONE_LIST_ID;
+        if (target) moveOptimistic(id, target);
+      });
+    });
+    // Click the avatar cell to assign/unassign a member (inline picker).
+    root.querySelectorAll('.avs-edit').forEach(function (el) {
+      el.addEventListener('mousedown', function (e) { e.stopPropagation(); });
+      el.addEventListener('click', function (e) { e.stopPropagation(); showMemberPicker(el.getAttribute('data-id')); });
+    });
     // Inline due-date editing: the transparent overlay input opens the native picker
     // on a direct click; on change we save optimistically.
     root.querySelectorAll('.due-ovl').forEach(function (inp) {
@@ -391,6 +425,54 @@
       Epic.setStatusLists(t, ids).then(render);
     });
     fit();
+  }
+
+  // Inline member picker: toggle board members on a sub-task (assign/unassign).
+  function showMemberPicker(cardId) {
+    busy = true;
+    var item = null;
+    if (lastPaint && lastPaint.s) lastPaint.s.items.forEach(function (it) { if (it.id === cardId) item = it; });
+    var assigned = {}; (item && item.members ? item.members : []).forEach(function (m) { assigned[m.id] = 1; });
+    var changed = false;
+    root.innerHTML = backBar() + '<p class="muted small">Загрузка участников…</p>';
+    document.getElementById('cx').addEventListener('click', function () { changed ? render() : backToList(cardId); });
+    t.board('id').then(function (b) { return Epic.fetchMembers(t, b.id); }).then(function (map) {
+      var members = Object.keys(map).map(function (id) { return map[id]; });
+      members.sort(function (a, b2) { return (a.fullName || a.username || '').localeCompare(b2.fullName || b2.username || ''); });
+      function paint() {
+        var rows = members.map(function (m) {
+          return '<button class="item member' + (assigned[m.id] ? ' selected' : '') + '" data-id="' + m.id + '">' +
+            avatarHtml(m) + '<span class="name">' + Views.esc(m.fullName || m.username || m.id) + '</span>' +
+            (assigned[m.id] ? '<span class="pill done">✓</span>' : '') + '</button>';
+        }).join('') || '<p class="muted small">Участники не найдены.</p>';
+        root.innerHTML = backBar() + '<p class="small muted">Исполнители подзадачи:</p><div class="list">' + rows + '</div>';
+        document.getElementById('cx').addEventListener('click', function () { changed ? render() : backToList(cardId); });
+        root.querySelectorAll('.member').forEach(function (el) {
+          el.addEventListener('click', function () {
+            var id = el.getAttribute('data-id');
+            var now = !assigned[id];
+            assigned[id] = now ? 1 : 0; changed = true;
+            lastSelfWrite = Date.now();
+            (now ? Epic.addMember(t, cardId, id) : Epic.removeMember(t, cardId, id))
+              .then(function () { lastSelfWrite = Date.now(); })
+              .catch(function (err) { if (err && err.message === 'auth') doAuthorize(function () {}); });
+            paint();
+          });
+        });
+        fit();
+      }
+      paint();
+    }).catch(function () {
+      root.innerHTML = backBar() + '<p class="small" style="color:#bf2600">Не удалось загрузить участников.</p>';
+      document.getElementById('cx').addEventListener('click', function () { render(); });
+      fit();
+    });
+  }
+  // Return to the list without a full refetch when nothing changed.
+  function backToList(cardId) {
+    busy = false;
+    if (lastPaint && lastPaint.s) { paintParent(lastPaint.cardId, lastPaint.s, lastPaint.icon); fit(); }
+    else render();
   }
 
   function showCreateForm(cardId) {

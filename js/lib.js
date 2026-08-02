@@ -126,6 +126,26 @@
       });
     },
 
+    // Assign a board member to a card via REST.
+    addMember: function (t, cardId, memberId) {
+      return Epic.getToken(t).then(function (token) {
+        if (!token || !Epic.APP_KEY) throw new Error('auth');
+        var qs = 'value=' + encodeURIComponent(memberId) + '&key=' + encodeURIComponent(Epic.APP_KEY) + '&token=' + encodeURIComponent(token);
+        return fetch('https://api.trello.com/1/cards/' + cardId + '/idMembers?' + qs, { method: 'POST' })
+          .then(function (r) { if (!r.ok) throw new Error('rest ' + r.status); return true; });
+      });
+    },
+
+    // Remove a member from a card via REST.
+    removeMember: function (t, cardId, memberId) {
+      return Epic.getToken(t).then(function (token) {
+        if (!token || !Epic.APP_KEY) throw new Error('auth');
+        var qs = 'key=' + encodeURIComponent(Epic.APP_KEY) + '&token=' + encodeURIComponent(token);
+        return fetch('https://api.trello.com/1/cards/' + cardId + '/idMembers/' + memberId + '?' + qs, { method: 'DELETE' })
+          .then(function (r) { if (!r.ok) throw new Error('rest ' + r.status); return true; });
+      });
+    },
+
     // Which board lists count as workflow "status" columns (move targets). null = not configured.
     getStatusLists: function (t) { return Epic._get(t, 'sub:statusLists', null); },
     setStatusLists: function (t, ids) { return Epic._set(t, 'sub:statusLists', ids); },
