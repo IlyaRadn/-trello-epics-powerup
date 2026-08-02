@@ -75,8 +75,8 @@
             return Promise.all([statsFor(t, c.id), Epic.getIcon(t, c.id)]).then(function (rr) {
               var s = rr[0], icon = rr[1];
               var text = s.total ? (icon + ' ' + s.done + '/' + s.total + ' done') : icon;
-              // Dark badge so it stands out on the closed card (green once complete).
-              return [{ text: text, color: (s.total && s.done === s.total) ? 'green' : 'black' }];
+              // Always-dark badge so it stands out on the closed card.
+              return [{ text: text, color: 'black' }];
             });
           }
           return Epic.getParent(t, c.id).then(function (p) {
@@ -107,7 +107,7 @@
       return {
         title: 'Duck Epics',
         icon: ICON,
-        content: { type: 'iframe', url: t.signUrl(url('views/section.html?v=14')), height: 200 },
+        content: { type: 'iframe', url: t.signUrl(url('views/section.html?v=15')), height: 200 },
       };
     },
 

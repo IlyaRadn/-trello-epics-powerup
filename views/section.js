@@ -25,7 +25,9 @@
     var name = Views.esc(m.fullName || m.username || '');
     var ini = Views.esc(((m.initials || (m.fullName || m.username || '?')) + '').slice(0, 2).toUpperCase());
     // Real Trello avatar photo when present; initials circle otherwise (or on load error).
-    var img = m.avatarUrl ? '<img src="' + Views.esc(m.avatarUrl) + '/30.png" onerror="this.remove()" alt="">' : '';
+    var base = m.avatarUrl || (m.avatarHash ? 'https://trello-members.s3.amazonaws.com/' + m.id + '/' + m.avatarHash : '');
+    var src = base ? (/\.(png|jpe?g|gif)$/i.test(base) ? base : base + '/50.png') : '';
+    var img = src ? '<img src="' + Views.esc(src) + '" onerror="this.remove()" alt="">' : '';
     return '<span class="av" title="' + name + '" style="background:hsl(' + hue(m.id) + ',55%,52%)">' + ini + img + '</span>';
   }
   function subRow(it) {
