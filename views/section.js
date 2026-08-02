@@ -14,13 +14,14 @@
   var busy = false;
   var LIMIT = 30;
   var MEMBER_AVATARS = {}; // memberId -> avatarUrl (from REST, cached across renders)
+  var lastRendered = null; // id of the card we last rendered for (navigation watch)
   var DBG = {};
   function debugFooter() {
     if (!root) return;
     var el = document.createElement('p');
     el.className = 'small muted';
     el.style.cssText = 'opacity:.5;margin-top:10px;font-family:monospace';
-    el.textContent = 'DBG v19 · card ' + String(DBG.card).slice(-5) + ' · sub=' + (!!DBG.sub) +
+    el.textContent = 'DBG v20 · card ' + String(DBG.card).slice(-5) + ' · sub=' + (!!DBG.sub) +
       ' · parent=' + (DBG.parent ? String(DBG.parent).slice(-5) : '—') +
       ' · token=' + (DBG.token ? 'yes' : 'no') + ' · avatars=' + Object.keys(MEMBER_AVATARS).length;
     root.appendChild(el);
@@ -82,6 +83,7 @@
     root.innerHTML = '<p class="muted small">Загрузка…</p>';
     return t.card('id').then(function (c) {
       var cardId = c.id;
+      lastRendered = cardId;
       return Promise.all([Epic.isSubscription(t, cardId), Epic.getParent(t, cardId), Epic.getToken(t)]).then(function (r) {
         DBG = { card: cardId, sub: r[0], parent: r[1], token: !!r[2] };
         if (r[0]) return renderParent(cardId);
@@ -283,4 +285,11 @@
 
   t.render(function () { if (!busy) render(); });
   render();
+
+  // Trello can reuse this iframe across card navigation (t.showCard) without a
+  // fresh load — watch the current card id and re-render when it changes.
+  setInterval(function () {
+    if (busy) return;
+    t.card('id').then(function (c) { if (c && c.id !== lastRendered) render(); }).catch(function () {});
+  }, 1200);
 })();
