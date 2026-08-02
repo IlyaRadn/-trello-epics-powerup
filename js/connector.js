@@ -112,7 +112,7 @@
         return {
           title: 'Duck Epics',
           icon: ICON,
-          content: { type: 'iframe', url: t.signUrl(url('views/section.html?v=38&c=' + c.id)), height: 200 },
+          content: { type: 'iframe', url: t.signUrl(url('views/section.html?v=39&c=' + c.id)), height: 200 },
         };
       });
     },

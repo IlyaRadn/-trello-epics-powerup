@@ -21,6 +21,9 @@
   var STATUS_LISTS = []; // [{id,name}] workflow columns shown as move targets
   var ALL_LISTS = [];    // [{id,name}] every board list (for the ⚙ config)
   var DRAG_ID = null;    // id of the sub-task currently being dragged
+  var lastSelfWrite = 0; // timestamp of our last optimistic REST write (move/due) — used
+                         // to suppress Trello's t.render churn that would otherwise rebuild
+                         // the DOM mid-interaction (e.g. close a just-opened date picker).
   var DBG = {};
   function debugFooter() { /* debug readout disabled; re-enable if diagnosing */ }
 
@@ -57,7 +60,8 @@
     });
     if (moved) s.done = s.items.filter(function (it) { return it.done; }).length;
     paintParent(lp.cardId, s, lp.icon); fit();
-    Epic.moveCard(t, cardId, toListId).catch(function (err) {
+    lastSelfWrite = Date.now();
+    Epic.moveCard(t, cardId, toListId).then(function () { lastSelfWrite = Date.now(); }).catch(function (err) {
       render(); // failed — resync to the real board state
       if (err && err.message === 'auth') doAuthorize(render);
     });
@@ -90,7 +94,9 @@
       lp.s.items.forEach(function (it) { if (it.id === cardId) { it.due = iso || null; if (!iso) it.dueComplete = false; } });
       paintParent(lp.cardId, lp.s, lp.icon); fit();
     }
-    Epic.setDue(t, cardId, iso).catch(function (err) { render(); if (err && err.message === 'auth') doAuthorize(render); });
+    lastSelfWrite = Date.now();
+    Epic.setDue(t, cardId, iso).then(function () { lastSelfWrite = Date.now(); })
+      .catch(function (err) { render(); if (err && err.message === 'auth') doAuthorize(render); });
   }
 
   // Paint only if we're still on the same card (guards against a slow async
@@ -495,6 +501,12 @@
     });
   }
 
-  t.render(function () { if (!busy) render(); });
+  t.render(function () {
+    if (busy) return;
+    // Skip the re-render triggered by our own optimistic write (move/due): the UI is
+    // already updated, and rebuilding now would close an open date picker / feel slow.
+    if (Date.now() - lastSelfWrite < 2500) return;
+    render();
+  });
   render();
 })();
