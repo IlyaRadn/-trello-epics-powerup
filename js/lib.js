@@ -36,7 +36,12 @@
     '✈️','🛸','⛵','🚤','🛰️','🌍','🌙','⭐','☀️','🌊','❄️','🌸',
     '🌻','🌷','🌹','🍎','🍊','🍋','🍉','🍇','🍓','🫐','🥝','🍒',
     '🥑','🌽','🥕','🍄','🐶','🐱','🐰','🐻','🐼','🐨','🐯','🦁',
-    '🐸','🐵','🐧','🦋','🐢','🐬','🦈','🦭','🦕','🐝',
+    '🐸','🐵','🐧','🦋','🐢','🐬','🦈','🦭','🦕','🐺',
+    '🎉','🥳','🤖','👾','🐲','🦩','🦚','🦜','🐣','🦔',
+    '🦦','🦥','🐿️','🦫','🍕','🍔','🌭','🌮','🥨','🧇',
+    '🥞','🍿','🍫','🍭','🍦','🧁','🎂','🥤','🍹','🍸',
+    '🎃','👻','💀','🤡','🎭','🪄','🎇','🎆','🌠','💫',
+    '🪐','🔔','🎺','🥁','🎻','🪕','🪗','🧃','🌪️','🦖',
   ];
 
   function key(kind, id) { return 'sub:' + kind + ':' + id; }
@@ -150,11 +155,9 @@
       });
     },
 
-    // Deterministic pick from palette by card id (stable, no RNG).
-    autoIcon: function (cardId) {
-      var h = 0, s = String(cardId);
-      for (var i = 0; i < s.length; i++) { h = (h * 31 + s.charCodeAt(i)) >>> 0; }
-      return ICON_PALETTE[h % ICON_PALETTE.length];
+    // Random pick — a fresh icon each time a Subscription is created.
+    autoIcon: function () {
+      return ICON_PALETTE[Math.floor(Math.random() * ICON_PALETTE.length)];
     },
 
     // ---------- relationships ----------
