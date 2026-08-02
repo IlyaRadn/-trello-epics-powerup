@@ -21,7 +21,7 @@
     var el = document.createElement('p');
     el.className = 'small muted';
     el.style.cssText = 'opacity:.5;margin-top:10px;font-family:monospace';
-    el.textContent = 'DBG v20 · card ' + String(DBG.card).slice(-5) + ' · sub=' + (!!DBG.sub) +
+    el.textContent = 'DBG v21 · card ' + String(DBG.card).slice(-5) + ' · sub=' + (!!DBG.sub) +
       ' · parent=' + (DBG.parent ? String(DBG.parent).slice(-5) : '—') +
       ' · token=' + (DBG.token ? 'yes' : 'no') + ' · avatars=' + Object.keys(MEMBER_AVATARS).length;
     root.appendChild(el);
@@ -29,6 +29,13 @@
 
   function fit() { if (t.sizeTo) t.sizeTo(document.body); }
   function authed() { return Epic.getToken(t).then(function (tok) { return !!tok; }).catch(function () { return false; }); }
+
+  // Open a card. t.showCard reuses this iframe (t.card() then keeps returning the
+  // OLD card), so navigate the whole Trello tab to the card URL for a fresh load.
+  function openCard(url, id) {
+    if (url) { var w = window.open(url, '_top'); if (w) return; }
+    t.showCard(id);
+  }
 
   // Paint only if we're still on the same card (guards against a slow async
   // render landing after the user navigated to another card).
@@ -57,7 +64,7 @@
     if (it.due) meta += '<span class="pill ' + (it.dueComplete ? 'done' : '') + '">🕐 ' + fmtDate(it.due) + '</span>';
     meta += '<span class="pill ' + (it.done ? 'done' : '') + '">' + Views.esc(it.list) + '</span>';
     var avs = (it.members || []).slice(0, 4).map(avatarHtml).join('');
-    return '<button class="sub ' + (it.archived ? 'archived' : '') + '" data-id="' + it.id + '">' +
+    return '<button class="sub ' + (it.archived ? 'archived' : '') + '" data-id="' + it.id + '" data-url="' + Views.esc(it.url || '') + '">' +
       '<div class="name">' + Views.esc(it.name) + (it.archived ? ' 📦' : '') + '</div>' +
       '<div class="meta">' + meta + (avs ? '<span class="avs">' + avs + '</span>' : '') + '</div></button>';
   }
@@ -133,7 +140,7 @@
     return Promise.all([Epic.getChildren(t, cardId), Epic.getIcon(t, cardId), t.lists('id', 'name')]).then(function (pre) {
       var childIds = pre[0], icon = pre[1], lists = pre[2];
       // Stage 1 — minimal fields (fast): show the list immediately.
-      return t.cards('id', 'name', 'idList', 'closed').then(function (active) {
+      return t.cards('id', 'name', 'idList', 'closed', 'url').then(function (active) {
         var have = {}; active.forEach(function (c) { have[c.id] = 1; });
         var missing = childIds.some(function (id) { return !have[id]; });
         var archP = missing ? t.board('id').then(function (b) { return Epic.fetchArchived(t, b.id); }) : Promise.resolve({});
@@ -142,7 +149,7 @@
             return safePaint(cardId, s, icon).then(function () {
               // Stage 2 — enrich with due/checklist/members + avatar URLs (REST) in the background.
               Promise.all([
-                t.cards('id', 'name', 'idList', 'closed', 'due', 'dueComplete', 'badges', 'members'),
+                t.cards('id', 'name', 'idList', 'closed', 'url', 'due', 'dueComplete', 'badges', 'members'),
                 t.board('id').then(function (b) { return Epic.fetchMembers(t, b.id); }),
               ]).then(function (rr) {
                 var rich = rr[0], members = rr[1];
@@ -180,7 +187,7 @@
       '<button class="btn" id="un">Unmark</button></div>' + body;
 
     root.querySelectorAll('.sub').forEach(function (el) {
-      el.addEventListener('click', function () { t.showCard(el.getAttribute('data-id')); });
+      el.addEventListener('click', function () { openCard(el.getAttribute('data-url'), el.getAttribute('data-id')); });
     });
     document.getElementById('ic').addEventListener('click', function () { showIconPicker(cardId); });
     document.getElementById('new').addEventListener('click', function () { showCreateForm(cardId); });
@@ -269,15 +276,15 @@
 
   // ---------- sub-task (child) ----------
   function renderChild(cardId, parentId) {
-    return Promise.all([Epic.getIcon(t, parentId), t.cards('id', 'name')]).then(function (r) {
+    return Promise.all([Epic.getIcon(t, parentId), t.cards('id', 'name', 'url')]).then(function (r) {
       var icon = r[0], cards = r[1];
       var p = cards.filter(function (x) { return x.id === parentId; })[0];
       root.innerHTML =
-        '<button class="item" data-id="' + parentId + '"><span>' + icon + '</span>' +
+        '<button class="item" data-url="' + Views.esc((p && p.url) || '') + '"><span>' + icon + '</span>' +
         '<span class="name">' + Views.esc(p ? p.name : '(archived)') + '</span>' +
         '<span class="pill">Subscription</span></button>' +
         '<div class="actions"><button class="btn danger" id="de">Detach</button></div>';
-      root.querySelector('.item').addEventListener('click', function () { t.showCard(parentId); });
+      root.querySelector('.item').addEventListener('click', function () { openCard(root.querySelector('.item').getAttribute('data-url'), parentId); });
       document.getElementById('de').addEventListener('click', function () { Epic.detach(t, cardId).then(render); });
       debugFooter();
     });

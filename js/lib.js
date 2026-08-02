@@ -95,12 +95,12 @@
     fetchArchived: function (t, boardId) {
       return Epic.getToken(t).then(function (token) {
         if (!token || !Epic.APP_KEY) return {};
-        var qs = 'filter=closed&fields=name,idList,closed&key=' + encodeURIComponent(Epic.APP_KEY) + '&token=' + encodeURIComponent(token);
+        var qs = 'filter=closed&fields=name,idList,closed,url&key=' + encodeURIComponent(Epic.APP_KEY) + '&token=' + encodeURIComponent(token);
         return fetch('https://api.trello.com/1/boards/' + boardId + '/cards?' + qs)
           .then(function (r) { return r.ok ? r.json() : []; })
           .then(function (cards) {
             var map = {};
-            cards.forEach(function (c) { map[c.id] = { id: c.id, name: c.name, idList: c.idList, closed: true }; });
+            cards.forEach(function (c) { map[c.id] = { id: c.id, name: c.name, idList: c.idList, closed: true, url: c.url }; });
             return map;
           }).catch(function () { return {}; });
       });
@@ -278,6 +278,7 @@
           var b = c.badges || {};
           items.push({
             id: id, name: c.name, list: ln, listId: c.idList, done: isDone, archived: !!c.closed,
+            url: c.url || null,
             due: c.due || null, dueComplete: !!c.dueComplete,
             checkItems: b.checkItems || 0, checkItemsChecked: b.checkItemsChecked || 0,
             members: c.members || [],

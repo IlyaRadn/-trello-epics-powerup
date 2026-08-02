@@ -108,7 +108,7 @@
       return {
         title: 'Duck Epics',
         icon: ICON,
-        content: { type: 'iframe', url: t.signUrl(url('views/section.html?v=20')), height: 200 },
+        content: { type: 'iframe', url: t.signUrl(url('views/section.html?v=21')), height: 200 },
       };
     },
 
