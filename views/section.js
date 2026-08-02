@@ -36,6 +36,33 @@
 
   function openCard(url, id) { t.showCard(id); }
 
+  // Optimistic column move: repaint instantly from the in-memory stats, then fire
+  // the REST move in the background. No refetch on success (that was the 1-min lag);
+  // revert to the true state only if the move fails.
+  function moveOptimistic(cardId, toListId) {
+    var lp = lastPaint;
+    if (!lp || !lp.s) {
+      Epic.moveCard(t, cardId, toListId).then(render)
+        .catch(function (err) { if (err && err.message === 'auth') doAuthorize(render); });
+      return;
+    }
+    var toName = '';
+    ALL_LISTS.forEach(function (l) { if (l.id === toListId) toName = l.name; });
+    var s = lp.s, moved = false;
+    s.items.forEach(function (it) {
+      if (it.id === cardId && !it.archived) {
+        it.listId = toListId; it.list = toName; it.done = Epic.DONE_LIST_RE.test(toName || '');
+        moved = true;
+      }
+    });
+    if (moved) s.done = s.items.filter(function (it) { return it.done; }).length;
+    paintParent(lp.cardId, s, lp.icon); fit();
+    Epic.moveCard(t, cardId, toListId).catch(function (err) {
+      render(); // failed — resync to the real board state
+      if (err && err.message === 'auth') doAuthorize(render);
+    });
+  }
+
   // Paint only if we're still on the same card (guards against a slow async
   // render landing after the user navigated to another card).
   function safePaint(cardId, s, icon) {
@@ -259,9 +286,7 @@
       sel.addEventListener('click', function (e) { e.stopPropagation(); });
       sel.addEventListener('change', function (e) {
         e.stopPropagation();
-        sel.disabled = true;
-        Epic.moveCard(t, sel.getAttribute('data-id'), sel.value).then(render)
-          .catch(function (err) { sel.disabled = false; if (err && err.message === 'auth') doAuthorize(render); });
+        moveOptimistic(sel.getAttribute('data-id'), sel.value);
       });
     });
     // Drag a sub-task onto a column group to change its status.
@@ -281,8 +306,7 @@
       g.addEventListener('drop', function (e) {
         e.preventDefault(); g.classList.remove('drop-hover');
         var to = g.getAttribute('data-list'), id = DRAG_ID;
-        if (!id || !to) return;
-        Epic.moveCard(t, id, to).then(render).catch(function (err) { if (err && err.message === 'auth') doAuthorize(render); });
+        if (id && to) moveOptimistic(id, to);
       });
     });
     debugFooter();

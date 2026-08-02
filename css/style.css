@@ -24,7 +24,7 @@ body {
 .item.selected { border-color: var(--blue); box-shadow: inset 0 0 0 1px var(--blue); }
 .item.archived { opacity: .75; }
 .item .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pill { font-size: 11px; padding: 1px 7px; border-radius: 10px; background: var(--bg); color: var(--sub); white-space: nowrap; }
+.pill { font-size: 11px; height: 22px; padding: 0 8px; border-radius: 10px; background: var(--bg); color: var(--sub); white-space: nowrap; display: inline-flex; align-items: center; }
 .pill.done { background: var(--green-bg); color: var(--green); }
 
 /* move-to-column dropdown (on a white row) — fixed width so rows line up */
