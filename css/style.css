@@ -26,11 +26,14 @@ body {
 .item .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pill { font-size: 11px; height: 24px; padding: 0 8px; border-radius: 6px; background: var(--bg); color: var(--sub); white-space: nowrap; display: inline-flex; align-items: center; gap: 3px; }
 .pill.done { background: var(--green-bg); color: var(--green); }
-/* clickable due-date chip (opens a native date picker inline) */
-.pill.due-edit { cursor: pointer; position: relative; }
+/* clickable due-date chip: a transparent native date input overlays the pill and its
+   calendar-picker-indicator is stretched to fill it, so a direct user click on the pill
+   opens the native picker (showPicker() is blocked in Trello's cross-origin iframe). */
+.pill.due-edit { cursor: pointer; position: relative; overflow: hidden; }
 .pill.due-edit:hover { background: var(--panel-track); }
 .pill.due-edit.empty { color: var(--sub); opacity: .7; }
-.due-input { position: absolute; left: 0; bottom: 0; width: 100%; height: 100%; opacity: 0; border: 0; padding: 0; margin: 0; }
+.due-ovl { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; border: 0; padding: 0; margin: 0; cursor: pointer; }
+.due-ovl::-webkit-calendar-picker-indicator { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; opacity: 0; cursor: pointer; }
 
 /* move-to-column dropdown — a real white control (distinct from the grey chips),
    on its own line, left-aligned (same vertical scheme as the archived rows). */

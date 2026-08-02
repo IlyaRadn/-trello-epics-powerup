@@ -65,29 +65,22 @@
 
   function pad2(n) { return (n < 10 ? '0' : '') + n; }
 
-  // Inline due-date editor: a native date picker anchored to the clicked pill.
-  function openDueEditor(cardId, currentISO, anchor) {
-    var inp = document.createElement('input');
-    inp.type = 'date';
-    inp.className = 'due-input';
+  // ISO date -> yyyy-mm-dd (local) for a native <input type=date> value.
+  function isoToInputVal(iso) {
+    if (!iso) return '';
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+  }
+
+  // yyyy-mm-dd (from the date input) -> ISO, keeping the original time-of-day if any.
+  function inputValToIso(val, currentISO) {
+    if (!val) return '';
+    var p = val.split('-');
     var base = currentISO ? new Date(currentISO) : null;
-    if (base && !isNaN(base.getTime())) inp.value = base.getFullYear() + '-' + pad2(base.getMonth() + 1) + '-' + pad2(base.getDate());
-    anchor.appendChild(inp);
-    var closed = false;
-    function cleanup() { if (!closed) { closed = true; if (inp.parentNode) inp.parentNode.removeChild(inp); } }
-    inp.addEventListener('change', function () {
-      var v = inp.value, iso = '';
-      if (v) {
-        var p = v.split('-');
-        var hh = (base && !isNaN(base.getTime())) ? base.getHours() : 12;
-        var mm = (base && !isNaN(base.getTime())) ? base.getMinutes() : 0;
-        iso = new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10), hh, mm).toISOString();
-      }
-      cleanup();
-      applyDue(cardId, iso);
-    });
-    inp.addEventListener('blur', function () { setTimeout(cleanup, 150); });
-    if (inp.showPicker) { try { inp.showPicker(); } catch (e) { inp.focus(); } } else { inp.focus(); }
+    var hh = (base && !isNaN(base.getTime())) ? base.getHours() : 12;
+    var mm = (base && !isNaN(base.getTime())) ? base.getMinutes() : 0;
+    return new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10), hh, mm).toISOString();
   }
 
   // Optimistic due update: repaint instantly, PUT in the background, revert on error.
@@ -147,11 +140,14 @@
 
     // ---- active row: SAME vertical scheme as archive ----
     // line 1: name (+ avatar pinned right)   line 2: date+checklist chips   line 3: status dropdown
-    var due = it.due
-      ? '🕐 ' + fmtDate(it.due)
-      : '📅 дата';
-    var chips = '<span class="pill due-edit' + (it.dueComplete ? ' done' : '') + (it.due ? '' : ' empty') +
-      '" data-due-id="' + it.id + '" data-due="' + (it.due || '') + '" title="Изменить дату">' + due + '</span>';
+    var dueLabel = it.due ? '🕐 ' + fmtDate(it.due) : '📅 дата';
+    // A transparent native date input overlays the pill; its calendar-picker-indicator
+    // is stretched to fill it (see CSS), so a direct click on the pill opens the native
+    // date picker — works inside Trello's cross-origin iframe where showPicker() is blocked.
+    var dueVal = isoToInputVal(it.due);
+    var chips = '<span class="pill due-edit' + (it.dueComplete ? ' done' : '') + (it.due ? '' : ' empty') + '" title="Изменить дату">' +
+      dueLabel +
+      '<input type="date" class="due-ovl" data-due-id="' + it.id + '" data-due="' + (it.due || '') + '"' + (dueVal ? ' value="' + dueVal + '"' : '') + '></span>';
     if (it.checkItems) chips += '<span class="pill ' + (it.checkItemsChecked === it.checkItems ? 'done' : '') + '">☑ ' + it.checkItemsChecked + '/' + it.checkItems + '</span>';
 
     var inner =
@@ -330,12 +326,14 @@
     document.getElementById('cols').addEventListener('click', function () { showColumnsConfig(cardId); });
     var tg = document.getElementById('toggleList');
     if (tg) tg.addEventListener('click', function () { expandedList = !expandedList; paintParent(lastPaint.cardId, lastPaint.s, lastPaint.icon); });
-    // Click the due-date chip to edit it inline (native date picker).
-    root.querySelectorAll('.due-edit').forEach(function (el) {
-      el.addEventListener('mousedown', function (e) { e.stopPropagation(); });
-      el.addEventListener('click', function (e) {
+    // Inline due-date editing: the transparent overlay input opens the native picker
+    // on a direct click; on change we save optimistically.
+    root.querySelectorAll('.due-ovl').forEach(function (inp) {
+      inp.addEventListener('mousedown', function (e) { e.stopPropagation(); });
+      inp.addEventListener('click', function (e) { e.stopPropagation(); });
+      inp.addEventListener('change', function (e) {
         e.stopPropagation();
-        openDueEditor(el.getAttribute('data-due-id'), el.getAttribute('data-due') || '', el);
+        applyDue(inp.getAttribute('data-due-id'), inputValToIso(inp.value, inp.getAttribute('data-due')));
       });
     });
     // Move-to-column dropdown on each active row.
