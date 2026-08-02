@@ -90,6 +90,23 @@
       });
     },
 
+    // Fetch specific cards by id via REST (used for the few archived sub-tasks) —
+    // WAY faster than pulling every closed card on the board. id->{name,idList,closed,url}.
+    fetchArchivedByIds: function (t, ids) {
+      return Epic.getToken(t).then(function (token) {
+        if (!token || !Epic.APP_KEY || !ids || !ids.length) return {};
+        return Promise.all(ids.map(function (id) {
+          var qs = 'fields=name,idList,closed,url&key=' + encodeURIComponent(Epic.APP_KEY) + '&token=' + encodeURIComponent(token);
+          return fetch('https://api.trello.com/1/cards/' + id + '?' + qs)
+            .then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; });
+        })).then(function (cards) {
+          var map = {};
+          cards.forEach(function (c) { if (c) map[c.id] = { id: c.id, name: c.name, idList: c.idList, closed: !!c.closed, url: c.url }; });
+          return map;
+        });
+      });
+    },
+
     // Fetch archived (closed) cards for the board via REST, as id->{idList,name,closed}.
     // Used by the parent section/badges to include archived sub-tasks (S5+).
     fetchArchived: function (t, boardId) {

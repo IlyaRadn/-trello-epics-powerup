@@ -15,13 +15,14 @@
   var LIMIT = 30;
   var MEMBER_AVATARS = {}; // memberId -> avatarUrl (from REST, cached across renders)
   var lastRendered = null; // id of the card we last rendered for (navigation watch)
+  var painted = false; // once painted, re-renders keep old content (no "Загрузка" flicker)
   var DBG = {};
   function debugFooter() {
     if (!root) return;
     var el = document.createElement('p');
     el.className = 'small muted';
     el.style.cssText = 'opacity:.5;margin-top:10px;font-family:monospace';
-    el.textContent = 'DBG v22 · card ' + String(DBG.card).slice(-5) + ' · sub=' + (!!DBG.sub) +
+    el.textContent = 'DBG v23 · card ' + String(DBG.card).slice(-5) + ' · sub=' + (!!DBG.sub) +
       ' · parent=' + (DBG.parent ? String(DBG.parent).slice(-5) : '—') +
       ' · token=' + (DBG.token ? 'yes' : 'no') + ' · avatars=' + Object.keys(MEMBER_AVATARS).length;
     root.appendChild(el);
@@ -89,7 +90,7 @@
   function render() {
     busy = false;
     root = document.getElementById('root');
-    root.innerHTML = '<p class="muted small">Загрузка…</p>';
+    if (!painted) root.innerHTML = '<p class="muted small">Загрузка…</p>';
     var cid = ctxCardId();
     var cardP = cid ? Promise.resolve(cid) : t.card('id').then(function (c) { return c.id; });
     return cardP.then(function (cardId) {
@@ -100,7 +101,7 @@
         if (r[1]) return renderChild(cardId, r[1]);
         return renderNone(cardId);
       });
-    }).then(fit).catch(function (e) {
+    }).then(function () { painted = true; fit(); }).catch(function (e) {
       root.innerHTML = '<p class="small" style="color:#bf2600">Ошибка: ' + Views.esc(e && e.message) + '</p>';
       fit();
     });
@@ -145,8 +146,9 @@
       // Stage 1 — minimal fields (fast): show the list immediately.
       return t.cards('id', 'name', 'idList', 'closed', 'url').then(function (active) {
         var have = {}; active.forEach(function (c) { have[c.id] = 1; });
-        var missing = childIds.some(function (id) { return !have[id]; });
-        var archP = missing ? t.board('id').then(function (b) { return Epic.fetchArchived(t, b.id); }) : Promise.resolve({});
+        var missingIds = childIds.filter(function (id) { return !have[id]; });
+        // Fetch ONLY the archived sub-tasks by id (fast), not the whole board archive.
+        var archP = missingIds.length ? Epic.fetchArchivedByIds(t, missingIds) : Promise.resolve({});
         return archP.then(function (arch) {
           return Epic.computeStats(t, cardId, { activeCards: active, lists: lists, archivedById: arch }).then(function (s) {
             return safePaint(cardId, s, icon).then(function () {
@@ -172,13 +174,21 @@
     if (!s.total) {
       body = '<p class="muted small">Пока нет подзадач — «+ Sub-task» создаст новую, «🔗 Привязать» добавит существующую.</p>';
     } else {
-      // Group sub-tasks by column (status), like Hello Epics' board view.
-      var groups = {}, order = [];
-      s.items.forEach(function (it) { if (!groups[it.list]) { groups[it.list] = []; order.push(it.list); } groups[it.list].push(it); });
+      // Group active sub-tasks by column (status); archived go to their own group.
+      var groups = {}, order = [], archived = [];
+      s.items.forEach(function (it) {
+        if (it.archived) { archived.push(it); return; }
+        if (!groups[it.list]) { groups[it.list] = []; order.push(it.list); }
+        groups[it.list].push(it);
+      });
       body = order.map(function (ln) {
         return '<div class="grp"><div class="grp-h">' + Views.esc(ln) + ' <span class="grp-n">' + groups[ln].length + '</span></div>' +
           '<div class="list">' + groups[ln].map(subRow).join('') + '</div></div>';
       }).join('');
+      if (archived.length) {
+        body += '<div class="grp"><div class="grp-h">📦 Архив <span class="grp-n">' + archived.length + '</span></div>' +
+          '<div class="list">' + archived.map(subRow).join('') + '</div></div>';
+      }
     }
     root.innerHTML =
       '<div class="progress"><b style="font-size:16px">' + icon + '</b>' +
@@ -295,11 +305,4 @@
 
   t.render(function () { if (!busy) render(); });
   render();
-
-  // Trello can reuse this iframe across card navigation (t.showCard) without a
-  // fresh load — watch the current card id and re-render when it changes.
-  setInterval(function () {
-    if (busy) return;
-    t.card('id').then(function (c) { if (c && c.id !== lastRendered) render(); }).catch(function () {});
-  }, 1200);
 })();
