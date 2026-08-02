@@ -13,6 +13,7 @@
   var root;
   var busy = false;
   var LIMIT = 30;
+  var MEMBER_AVATARS = {}; // memberId -> avatarUrl (from REST, cached across renders)
 
   function fit() { if (t.sizeTo) t.sizeTo(document.body); }
   function authed() { return Epic.getToken(t).then(function (tok) { return !!tok; }).catch(function () { return false; }); }
@@ -25,7 +26,7 @@
     var name = Views.esc(m.fullName || m.username || '');
     var ini = Views.esc(((m.initials || (m.fullName || m.username || '?')) + '').slice(0, 2).toUpperCase());
     // Real Trello avatar photo when present; initials circle otherwise (or on load error).
-    var base = m.avatarUrl || (m.avatarHash ? 'https://trello-members.s3.amazonaws.com/' + m.id + '/' + m.avatarHash : '');
+    var base = m.avatarUrl || MEMBER_AVATARS[m.id] || (m.avatarHash ? 'https://trello-members.s3.amazonaws.com/' + m.id + '/' + m.avatarHash : '');
     var src = base ? (/\.(png|jpe?g|gif)$/i.test(base) ? base : base + '/50.png') : '';
     var img = src ? '<img src="' + Views.esc(src) + '" onerror="this.remove()" alt="">' : '';
     return '<span class="av" title="' + name + '" style="background:hsl(' + hue(m.id) + ',55%,52%)">' + ini + img + '</span>';
@@ -116,11 +117,15 @@
         return archP.then(function (arch) {
           return Epic.computeStats(t, cardId, { activeCards: active, lists: lists, archivedById: arch }).then(function (s) {
             paintParent(cardId, s, icon); fit();
-            // Stage 2 — enrich with due/checklist/members in the background.
-            t.cards('id', 'name', 'idList', 'closed', 'due', 'dueComplete', 'badges', 'members')
-              .then(function (rich) { return Epic.computeStats(t, cardId, { activeCards: rich, lists: lists, archivedById: arch }); })
-              .then(function (s2) { if (!busy) { paintParent(cardId, s2, icon); fit(); } })
-              .catch(function () {});
+            // Stage 2 — enrich with due/checklist/members + avatar URLs (REST) in the background.
+            Promise.all([
+              t.cards('id', 'name', 'idList', 'closed', 'due', 'dueComplete', 'badges', 'members'),
+              t.board('id').then(function (b) { return Epic.fetchMembers(t, b.id); }),
+            ]).then(function (rr) {
+              var rich = rr[0], members = rr[1];
+              Object.keys(members).forEach(function (id) { if (members[id].avatarUrl) MEMBER_AVATARS[id] = members[id].avatarUrl; });
+              return Epic.computeStats(t, cardId, { activeCards: rich, lists: lists, archivedById: arch });
+            }).then(function (s2) { if (!busy) { paintParent(cardId, s2, icon); fit(); } }).catch(function () {});
           });
         });
       });

@@ -77,6 +77,19 @@
       });
     },
 
+    // Fetch board members via REST as id->{avatarUrl,fullName,...} (t.cards('members')
+    // omits avatar URLs, so we look them up here). Empty map if not authorized.
+    fetchMembers: function (t, boardId) {
+      return Epic.getToken(t).then(function (token) {
+        if (!token || !Epic.APP_KEY) return {};
+        var qs = 'fields=fullName,username,initials,avatarUrl&key=' + encodeURIComponent(Epic.APP_KEY) + '&token=' + encodeURIComponent(token);
+        return fetch('https://api.trello.com/1/boards/' + boardId + '/members?' + qs)
+          .then(function (r) { return r.ok ? r.json() : []; })
+          .then(function (arr) { var map = {}; arr.forEach(function (m) { map[m.id] = m; }); return map; })
+          .catch(function () { return {}; });
+      });
+    },
+
     // Fetch archived (closed) cards for the board via REST, as id->{idList,name,closed}.
     // Used by the parent section/badges to include archived sub-tasks (S5+).
     fetchArchived: function (t, boardId) {
