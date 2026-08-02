@@ -22,7 +22,7 @@
     var el = document.createElement('p');
     el.className = 'small muted';
     el.style.cssText = 'opacity:.5;margin-top:10px;font-family:monospace';
-    el.textContent = 'DBG v23 · card ' + String(DBG.card).slice(-5) + ' · sub=' + (!!DBG.sub) +
+    el.textContent = 'DBG v24 · card ' + String(DBG.card).slice(-5) + ' · sub=' + (!!DBG.sub) +
       ' · parent=' + (DBG.parent ? String(DBG.parent).slice(-5) : '—') +
       ' · token=' + (DBG.token ? 'yes' : 'no') + ' · avatars=' + Object.keys(MEMBER_AVATARS).length;
     root.appendChild(el);
@@ -67,9 +67,16 @@
     if (it.due) meta += '<span class="pill ' + (it.dueComplete ? 'done' : '') + '">🕐 ' + fmtDate(it.due) + '</span>';
     meta += '<span class="pill ' + (it.done ? 'done' : '') + '">' + Views.esc(it.list) + '</span>';
     var avs = (it.members || []).slice(0, 4).map(avatarHtml).join('');
-    return '<button class="sub ' + (it.archived ? 'archived' : '') + '" data-id="' + it.id + '" data-url="' + Views.esc(it.url || '') + '">' +
-      '<div class="name">' + Views.esc(it.name) + (it.archived ? ' 📦' : '') + '</div>' +
-      '<div class="meta">' + meta + (avs ? '<span class="avs">' + avs + '</span>' : '') + '</div></button>';
+    var inner = '<div class="name">' + Views.esc(it.name) + (it.archived ? ' 📦' : '') + '</div>' +
+      '<div class="meta">' + meta + (avs ? '<span class="avs">' + avs + '</span>' : '') + '</div>';
+    if (it.archived) {
+      // Not a <button> (it holds its own action buttons).
+      return '<div class="sub archived" data-id="' + it.id + '">' + inner +
+        '<div class="actions" style="margin-top:6px">' +
+        '<button class="btn" data-open="' + Views.esc(it.url || '') + '">Open in new tab</button>' +
+        '<button class="btn" data-unarch="' + it.id + '">Unarchive</button></div></div>';
+    }
+    return '<button class="sub" data-id="' + it.id + '" data-url="' + Views.esc(it.url || '') + '">' + inner + '</button>';
   }
 
   function doAuthorize(onDone) {
@@ -155,7 +162,8 @@
               // Stage 2 — enrich with due/checklist/members + avatar URLs (REST) in the background.
               Promise.all([
                 t.cards('id', 'name', 'idList', 'closed', 'url', 'due', 'dueComplete', 'badges', 'members'),
-                t.board('id').then(function (b) { return Epic.fetchMembers(t, b.id); }),
+                // Fetch board members (avatar URLs) once per iframe, then reuse.
+                Object.keys(MEMBER_AVATARS).length ? Promise.resolve({}) : t.board('id').then(function (b) { return Epic.fetchMembers(t, b.id); }),
               ]).then(function (rr) {
                 var rich = rr[0], members = rr[1];
                 Object.keys(members).forEach(function (id) { if (members[id].avatarUrl) MEMBER_AVATARS[id] = members[id].avatarUrl; });
@@ -200,7 +208,19 @@
       '<button class="btn" id="un">Unmark</button></div>' + body;
 
     root.querySelectorAll('.sub').forEach(function (el) {
+      if (el.classList.contains('archived')) return; // archived rows use their own buttons
       el.addEventListener('click', function () { openCard(el.getAttribute('data-url'), el.getAttribute('data-id')); });
+    });
+    root.querySelectorAll('[data-open]').forEach(function (b) {
+      b.addEventListener('click', function (e) { e.stopPropagation(); var u = b.getAttribute('data-open'); if (u) window.open(u, '_blank'); });
+    });
+    root.querySelectorAll('[data-unarch]').forEach(function (b) {
+      b.addEventListener('click', function (e) {
+        e.stopPropagation();
+        b.disabled = true; b.textContent = '…';
+        Epic.unarchiveCard(t, b.getAttribute('data-unarch')).then(render)
+          .catch(function () { b.disabled = false; b.textContent = 'Unarchive'; });
+      });
     });
     document.getElementById('ic').addEventListener('click', function () { showIconPicker(cardId); });
     document.getElementById('new').addEventListener('click', function () { showCreateForm(cardId); });

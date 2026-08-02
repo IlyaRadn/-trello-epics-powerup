@@ -90,6 +90,16 @@
       });
     },
 
+    // Un-archive (reopen) a card via REST. Rejects Error('auth') if not authorized.
+    unarchiveCard: function (t, id) {
+      return Epic.getToken(t).then(function (token) {
+        if (!token || !Epic.APP_KEY) throw new Error('auth');
+        var qs = 'closed=false&key=' + encodeURIComponent(Epic.APP_KEY) + '&token=' + encodeURIComponent(token);
+        return fetch('https://api.trello.com/1/cards/' + id + '?' + qs, { method: 'PUT' })
+          .then(function (r) { if (!r.ok) throw new Error('rest ' + r.status); return true; });
+      });
+    },
+
     // Fetch specific cards by id via REST (used for the few archived sub-tasks) —
     // WAY faster than pulling every closed card on the board. id->{name,idList,closed,url}.
     fetchArchivedByIds: function (t, ids) {
