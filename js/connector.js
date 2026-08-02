@@ -75,8 +75,9 @@
             return Promise.all([statsFor(t, c.id), Epic.getIcon(t, c.id)]).then(function (rr) {
               var s = rr[0], icon = rr[1];
               var text = s.total ? (icon + ' ' + s.done + '/' + s.total + ' done') : icon;
-              // Always-dark badge so it stands out on the closed card.
-              return [{ text: text, color: 'black' }];
+              // Trello has no true-dark badge; use a bold color so it stands out
+              // (green when fully done, purple while in progress).
+              return [{ text: text, color: (s.total && s.done === s.total) ? 'green' : 'purple' }];
             });
           }
           return Epic.getParent(t, c.id).then(function (p) {
