@@ -63,9 +63,12 @@ select.move.done { background-color: var(--green-bg); color: var(--green); borde
    Fixed date + status columns, so the dropdowns (and everything else) line up
    vertically across every row — aligned to the grid, starting from the left. */
 .sub .meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 24px; }
-.sub:not(.archived) .meta { display: grid; grid-template-columns: 68px 132px 1fr; align-items: center; }
+.sub:not(.archived) .meta { display: grid; grid-template-columns: 68px 132px 1fr; align-items: start; }
 .chips { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-width: 0; }
-.avs { display: inline-flex; align-items: center; gap: 0; justify-self: end; }
+/* keep the status control and avatar on the SAME line as the date (top row);
+   the checklist chip hangs below the date inside the chips column. */
+.sub:not(.archived) .meta > select.move { align-self: start; }
+.avs { display: inline-flex; align-items: center; gap: 0; justify-self: end; align-self: start; }
 .sub.archived .avs { margin-left: auto; }
 .av {
   position: relative; overflow: hidden; margin-left: -8px;
