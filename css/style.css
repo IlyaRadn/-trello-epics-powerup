@@ -1,14 +1,16 @@
-/* Shared styles for Duck Epics popup / section iframes. */
+/* Shared styles — Duck Epics section. Dark panel look (variant B). */
 :root {
   --ink: #172b4d; --sub: #5e6c84; --line: #dfe1e6; --bg: #f4f5f7;
   --green-bg: #e3fcef; --green: #006644; --blue: #0052cc;
+  --panel: #1f2a44; --panel-text: #cdd8ee; --panel-muted: #8ea3c9; --panel-track: #33405f;
 }
 * { box-sizing: border-box; }
 body {
   font: 14px/1.45 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  color: var(--ink); margin: 0; padding: 10px;
+  color: var(--panel-text); margin: 0; padding: 12px;
+  background: var(--panel); border-radius: 10px;
 }
-.muted { color: var(--sub); }
+.muted { color: var(--panel-muted); }
 .small { font-size: 12px; }
 
 /* list of items (subtasks / epics) */
@@ -16,23 +18,23 @@ body {
 .item {
   display: flex; align-items: center; gap: 8px; width: 100%;
   text-align: left; background: #fff; border: 1px solid var(--line);
-  border-radius: 6px; padding: 7px 9px; cursor: pointer; font: inherit; color: inherit;
+  border-radius: 6px; padding: 7px 9px; cursor: pointer; font: inherit; color: var(--ink);
 }
 .item:hover { background: var(--bg); }
 .item.selected { border-color: var(--blue); box-shadow: inset 0 0 0 1px var(--blue); }
-.item.archived { opacity: .6; }
+.item.archived { opacity: .75; }
 .item .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pill { font-size: 11px; padding: 1px 7px; border-radius: 10px; background: var(--bg); color: var(--sub); white-space: nowrap; }
 .pill.done { background: var(--green-bg); color: var(--green); }
 
-/* rich sub-task row */
+/* rich sub-task row (white card on the dark panel) */
 .sub {
   display: flex; flex-direction: column; align-items: stretch; gap: 3px; width: 100%;
   text-align: left; background: #fff; border: 1px solid var(--line); border-radius: 6px;
-  padding: 7px 9px; cursor: pointer; font: inherit; color: inherit;
+  padding: 7px 9px; cursor: pointer; font: inherit; color: var(--ink);
 }
 .sub:hover { background: var(--bg); }
-.sub.archived { opacity: .6; }
+.sub.archived { opacity: .8; }
 .sub .name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sub .meta { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
 .avs { display: inline-flex; gap: 2px; margin-left: auto; }
@@ -46,18 +48,19 @@ body {
 
 /* group sub-tasks by column (status) */
 .grp { margin-top: 8px; }
-.grp-h { font-size: 11px; font-weight: 700; color: var(--sub); text-transform: uppercase; letter-spacing: .03em; margin: 8px 0 4px; }
-.grp-n { color: var(--sub); font-weight: 600; }
+.grp-h { font-size: 11px; font-weight: 700; color: var(--panel-muted); text-transform: uppercase; letter-spacing: .03em; margin: 8px 0 4px; }
+.grp-n { color: var(--panel-muted); font-weight: 600; }
 
 /* progress */
 .progress { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-.bar { flex: 1; height: 8px; background: var(--bg); border-radius: 5px; overflow: hidden; }
+.bar { flex: 1; height: 8px; background: var(--panel-track); border-radius: 5px; overflow: hidden; }
 .bar > i { display: block; height: 100%; background: #36b37e; transition: width .2s; }
 
 /* form */
-label { display: block; font-weight: 600; font-size: 12px; margin: 10px 0 4px; }
+label { display: block; font-weight: 600; font-size: 12px; margin: 10px 0 4px; color: var(--panel-text); }
 input[type=text], select {
   width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: 6px; font: inherit;
+  background: #fff; color: var(--ink);
 }
 .btn {
   display: inline-block; border: 0; border-radius: 6px; padding: 8px 14px;
@@ -66,10 +69,10 @@ input[type=text], select {
 .btn.primary { background: var(--blue); color: #fff; }
 .btn.danger { background: #ffebe6; color: #bf2600; }
 .btn:disabled { opacity: .5; cursor: default; }
-.actions { display: flex; gap: 8px; margin-top: 14px; }
+.actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
 
-/* toolbar (icon + view toggle) */
-.toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+/* toolbar (icon + actions) */
+.toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
 .iconbtn { font-size: 18px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; cursor: pointer; padding: 4px 8px; }
 
 /* emoji picker grid */
