@@ -18,6 +18,14 @@
   function fit() { if (t.sizeTo) t.sizeTo(document.body); }
   function authed() { return Epic.getToken(t).then(function (tok) { return !!tok; }).catch(function () { return false; }); }
 
+  // Paint only if we're still on the same card (guards against a slow async
+  // render landing after the user navigated to another card).
+  function safePaint(cardId, s, icon) {
+    return t.card('id').then(function (cur) {
+      if (!busy && cur && cur.id === cardId) { paintParent(cardId, s, icon); fit(); }
+    });
+  }
+
   // ---- rich sub-task row (name + checklist + due + column + assignees) ----
   var MON = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
   function fmtDate(iso) { try { var d = new Date(iso); return d.getDate() + ' ' + MON[d.getMonth()]; } catch (e) { return ''; } }
@@ -116,16 +124,17 @@
         var archP = missing ? t.board('id').then(function (b) { return Epic.fetchArchived(t, b.id); }) : Promise.resolve({});
         return archP.then(function (arch) {
           return Epic.computeStats(t, cardId, { activeCards: active, lists: lists, archivedById: arch }).then(function (s) {
-            paintParent(cardId, s, icon); fit();
-            // Stage 2 — enrich with due/checklist/members + avatar URLs (REST) in the background.
-            Promise.all([
-              t.cards('id', 'name', 'idList', 'closed', 'due', 'dueComplete', 'badges', 'members'),
-              t.board('id').then(function (b) { return Epic.fetchMembers(t, b.id); }),
-            ]).then(function (rr) {
-              var rich = rr[0], members = rr[1];
-              Object.keys(members).forEach(function (id) { if (members[id].avatarUrl) MEMBER_AVATARS[id] = members[id].avatarUrl; });
-              return Epic.computeStats(t, cardId, { activeCards: rich, lists: lists, archivedById: arch });
-            }).then(function (s2) { if (!busy) { paintParent(cardId, s2, icon); fit(); } }).catch(function () {});
+            return safePaint(cardId, s, icon).then(function () {
+              // Stage 2 — enrich with due/checklist/members + avatar URLs (REST) in the background.
+              Promise.all([
+                t.cards('id', 'name', 'idList', 'closed', 'due', 'dueComplete', 'badges', 'members'),
+                t.board('id').then(function (b) { return Epic.fetchMembers(t, b.id); }),
+              ]).then(function (rr) {
+                var rich = rr[0], members = rr[1];
+                Object.keys(members).forEach(function (id) { if (members[id].avatarUrl) MEMBER_AVATARS[id] = members[id].avatarUrl; });
+                return Epic.computeStats(t, cardId, { activeCards: rich, lists: lists, archivedById: arch });
+              }).then(function (s2) { return safePaint(cardId, s2, icon); }).catch(function () {});
+            });
           });
         });
       });
