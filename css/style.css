@@ -26,12 +26,17 @@ body {
 .item .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pill { font-size: 11px; height: 24px; padding: 0 8px; border-radius: 6px; background: var(--bg); color: var(--sub); white-space: nowrap; display: inline-flex; align-items: center; gap: 3px; }
 .pill.done { background: var(--green-bg); color: var(--green); }
+/* clickable due-date chip (opens a native date picker inline) */
+.pill.due-edit { cursor: pointer; position: relative; }
+.pill.due-edit:hover { background: var(--panel-track); }
+.pill.due-edit.empty { color: var(--sub); opacity: .7; }
+.due-input { position: absolute; left: 0; bottom: 0; width: 100%; height: 100%; opacity: 0; border: 0; padding: 0; margin: 0; }
 
-/* move-to-column dropdown — a real white control (distinct from the grey chips).
-   Sits in a fixed grid column so every row's dropdown lines up vertically. */
+/* move-to-column dropdown — a real white control (distinct from the grey chips),
+   on its own line, left-aligned (same vertical scheme as the archived rows). */
 select.move {
   font-size: 11px; padding: 0 22px 0 9px; border: 1px solid var(--line); border-radius: 6px;
-  background-color: #fff; color: var(--ink); width: 100%; height: 24px; cursor: pointer;
+  background-color: #fff; color: var(--ink); width: 150px; height: 24px; cursor: pointer;
   text-overflow: ellipsis; -webkit-appearance: none; appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10'%3E%3Cpath d='M2 3l3 3 3-3' stroke='%235e6c84' fill='none' stroke-width='1.5'/%3E%3C/svg%3E");
   background-repeat: no-repeat; background-position: right 7px center;
@@ -58,17 +63,15 @@ select.move.done { background-color: var(--green-bg); color: var(--green); borde
 }
 .sub:hover { background: var(--bg); }
 .sub.archived { opacity: .8; }
+/* Rows are a simple LEFT-anchored vertical stack (same scheme as archived rows):
+   line 1 = name (+ avatar pinned to the right), line 2 = chips, line 3 = status. */
 .sub .name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* Meta row is a LEFT-anchored grid: [chips] [status] [avatars].
-   Fixed date + status columns, so the dropdowns (and everything else) line up
-   vertically across every row — aligned to the grid, starting from the left. */
-.sub .meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 24px; }
-.sub:not(.archived) .meta { display: grid; grid-template-columns: 68px 132px 1fr; align-items: start; }
-.chips { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-width: 0; }
-/* keep the status control and avatar on the SAME line as the date (top row);
-   the checklist chip hangs below the date inside the chips column. */
-.sub:not(.archived) .meta > select.move { align-self: start; }
-.avs { display: inline-flex; align-items: center; gap: 0; justify-self: end; align-self: start; }
+.toprow { display: flex; align-items: center; gap: 8px; }
+.toprow .name { flex: 1 1 auto; min-width: 0; }
+.sub .meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.chips { display: flex; flex-direction: row; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
+.ctl { display: flex; }
+.avs { display: inline-flex; align-items: center; gap: 0; flex: 0 0 auto; }
 .sub.archived .avs { margin-left: auto; }
 .av {
   position: relative; overflow: hidden; margin-left: -8px;

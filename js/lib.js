@@ -116,6 +116,16 @@
       });
     },
 
+    // Set (or clear, with dueISO = '') a card's due date via REST.
+    setDue: function (t, id, dueISO) {
+      return Epic.getToken(t).then(function (token) {
+        if (!token || !Epic.APP_KEY) throw new Error('auth');
+        var qs = 'due=' + encodeURIComponent(dueISO || '') + '&key=' + encodeURIComponent(Epic.APP_KEY) + '&token=' + encodeURIComponent(token);
+        return fetch('https://api.trello.com/1/cards/' + id + '?' + qs, { method: 'PUT' })
+          .then(function (r) { if (!r.ok) throw new Error('rest ' + r.status); return true; });
+      });
+    },
+
     // Which board lists count as workflow "status" columns (move targets). null = not configured.
     getStatusLists: function (t) { return Epic._get(t, 'sub:statusLists', null); },
     setStatusLists: function (t, ids) { return Epic._set(t, 'sub:statusLists', ids); },

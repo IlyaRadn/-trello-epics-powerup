@@ -63,6 +63,43 @@
     });
   }
 
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+
+  // Inline due-date editor: a native date picker anchored to the clicked pill.
+  function openDueEditor(cardId, currentISO, anchor) {
+    var inp = document.createElement('input');
+    inp.type = 'date';
+    inp.className = 'due-input';
+    var base = currentISO ? new Date(currentISO) : null;
+    if (base && !isNaN(base.getTime())) inp.value = base.getFullYear() + '-' + pad2(base.getMonth() + 1) + '-' + pad2(base.getDate());
+    anchor.appendChild(inp);
+    var closed = false;
+    function cleanup() { if (!closed) { closed = true; if (inp.parentNode) inp.parentNode.removeChild(inp); } }
+    inp.addEventListener('change', function () {
+      var v = inp.value, iso = '';
+      if (v) {
+        var p = v.split('-');
+        var hh = (base && !isNaN(base.getTime())) ? base.getHours() : 12;
+        var mm = (base && !isNaN(base.getTime())) ? base.getMinutes() : 0;
+        iso = new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10), hh, mm).toISOString();
+      }
+      cleanup();
+      applyDue(cardId, iso);
+    });
+    inp.addEventListener('blur', function () { setTimeout(cleanup, 150); });
+    if (inp.showPicker) { try { inp.showPicker(); } catch (e) { inp.focus(); } } else { inp.focus(); }
+  }
+
+  // Optimistic due update: repaint instantly, PUT in the background, revert on error.
+  function applyDue(cardId, iso) {
+    var lp = lastPaint;
+    if (lp && lp.s) {
+      lp.s.items.forEach(function (it) { if (it.id === cardId) { it.due = iso || null; if (!iso) it.dueComplete = false; } });
+      paintParent(lp.cardId, lp.s, lp.icon); fit();
+    }
+    Epic.setDue(t, cardId, iso).catch(function (err) { render(); if (err && err.message === 'auth') doAuthorize(render); });
+  }
+
   // Paint only if we're still on the same card (guards against a slow async
   // render landing after the user navigated to another card).
   function safePaint(cardId, s, icon) {
@@ -92,21 +129,35 @@
     return '<select class="move' + (it.done ? ' done' : '') + '" data-id="' + it.id + '" title="Переместить в колонку">' + opts + '</select>';
   }
   function subRow(it) {
-    var chips = '';
-    if (it.due) chips += '<span class="pill ' + (it.dueComplete ? 'done' : '') + '">🕐 ' + fmtDate(it.due) + '</span>';
-    if (it.checkItems) chips += '<span class="pill ' + (it.checkItemsChecked === it.checkItems ? 'done' : '') + '">☑ ' + it.checkItemsChecked + '/' + it.checkItems + '</span>';
-    if (it.archived) chips += '<span class="pill ' + (it.done ? 'done' : '') + '">' + Views.esc(it.list) + '</span>';
-    // Active rows get a column dropdown (move); archived keep a static pill (in chips).
-    var control = it.archived ? '' : colSelect(it);
     var avs = (it.members || []).slice(0, 3).map(avatarHtml).join('');
-    var inner = '<div class="name">' + Views.esc(it.name) + (it.archived ? ' 📦' : '') + '</div>' +
-      '<div class="meta"><span class="chips">' + chips + '</span>' + control + '<span class="avs">' + avs + '</span></div>';
+    var nameHtml = '<div class="name">' + Views.esc(it.name) + (it.archived ? ' 📦' : '') + '</div>';
+
+    // ---- archived row: name / list pill / [Open][Unarchive] — the "even" reference layout ----
     if (it.archived) {
-      return '<div class="sub archived" data-id="' + it.id + '">' + inner +
+      var achips = '';
+      if (it.due) achips += '<span class="pill ' + (it.dueComplete ? 'done' : '') + '">🕐 ' + fmtDate(it.due) + '</span>';
+      if (it.checkItems) achips += '<span class="pill ' + (it.checkItemsChecked === it.checkItems ? 'done' : '') + '">☑ ' + it.checkItemsChecked + '/' + it.checkItems + '</span>';
+      achips += '<span class="pill ' + (it.done ? 'done' : '') + '">' + Views.esc(it.list) + '</span>';
+      return '<div class="sub archived" data-id="' + it.id + '">' + nameHtml +
+        '<div class="meta"><span class="chips">' + achips + '</span></div>' +
         '<div class="actions" style="margin-top:6px">' +
         '<button class="btn" data-open="' + Views.esc(it.url || '') + '">Open in new tab</button>' +
         '<button class="btn" data-unarch="' + it.id + '">Unarchive</button></div></div>';
     }
+
+    // ---- active row: SAME vertical scheme as archive ----
+    // line 1: name (+ avatar pinned right)   line 2: date+checklist chips   line 3: status dropdown
+    var due = it.due
+      ? '🕐 ' + fmtDate(it.due)
+      : '📅 дата';
+    var chips = '<span class="pill due-edit' + (it.dueComplete ? ' done' : '') + (it.due ? '' : ' empty') +
+      '" data-due-id="' + it.id + '" data-due="' + (it.due || '') + '" title="Изменить дату">' + due + '</span>';
+    if (it.checkItems) chips += '<span class="pill ' + (it.checkItemsChecked === it.checkItems ? 'done' : '') + '">☑ ' + it.checkItemsChecked + '/' + it.checkItems + '</span>';
+
+    var inner =
+      '<div class="toprow">' + nameHtml + (avs ? '<span class="avs">' + avs + '</span>' : '') + '</div>' +
+      '<div class="meta"><span class="chips">' + chips + '</span></div>' +
+      '<div class="ctl">' + colSelect(it) + '</div>';
     // A <div> (not <button>) so the inline <select> works; draggable for column moves.
     return '<div class="sub" draggable="true" data-id="' + it.id + '" data-url="' + Views.esc(it.url || '') + '">' + inner + '</div>';
   }
@@ -279,6 +330,14 @@
     document.getElementById('cols').addEventListener('click', function () { showColumnsConfig(cardId); });
     var tg = document.getElementById('toggleList');
     if (tg) tg.addEventListener('click', function () { expandedList = !expandedList; paintParent(lastPaint.cardId, lastPaint.s, lastPaint.icon); });
+    // Click the due-date chip to edit it inline (native date picker).
+    root.querySelectorAll('.due-edit').forEach(function (el) {
+      el.addEventListener('mousedown', function (e) { e.stopPropagation(); });
+      el.addEventListener('click', function (e) {
+        e.stopPropagation();
+        openDueEditor(el.getAttribute('data-due-id'), el.getAttribute('data-due') || '', el);
+      });
+    });
     // Move-to-column dropdown on each active row.
     root.querySelectorAll('select.move').forEach(function (sel) {
       sel.addEventListener('mousedown', function (e) { e.stopPropagation(); });
