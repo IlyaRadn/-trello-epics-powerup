@@ -21,7 +21,7 @@
     var el = document.createElement('p');
     el.className = 'small muted';
     el.style.cssText = 'opacity:.5;margin-top:10px;font-family:monospace';
-    el.textContent = 'DBG v21 · card ' + String(DBG.card).slice(-5) + ' · sub=' + (!!DBG.sub) +
+    el.textContent = 'DBG v22 · card ' + String(DBG.card).slice(-5) + ' · sub=' + (!!DBG.sub) +
       ' · parent=' + (DBG.parent ? String(DBG.parent).slice(-5) : '—') +
       ' · token=' + (DBG.token ? 'yes' : 'no') + ' · avatars=' + Object.keys(MEMBER_AVATARS).length;
     root.appendChild(el);
@@ -30,12 +30,14 @@
   function fit() { if (t.sizeTo) t.sizeTo(document.body); }
   function authed() { return Epic.getToken(t).then(function (tok) { return !!tok; }).catch(function () { return false; }); }
 
-  // Open a card. t.showCard reuses this iframe (t.card() then keeps returning the
-  // OLD card), so navigate the whole Trello tab to the card URL for a fresh load.
-  function openCard(url, id) {
-    if (url) { var w = window.open(url, '_top'); if (w) return; }
-    t.showCard(id);
+  // The connector bakes the card id into our iframe URL (?c=…). It's the reliable
+  // card id (t.card() can go stale when Trello reuses the iframe across cards).
+  function ctxCardId() {
+    var m = location.search.match(/[?&]c=([^&]+)/);
+    return m ? decodeURIComponent(m[1]) : null;
   }
+
+  function openCard(url, id) { t.showCard(id); }
 
   // Paint only if we're still on the same card (guards against a slow async
   // render landing after the user navigated to another card).
@@ -88,8 +90,9 @@
     busy = false;
     root = document.getElementById('root');
     root.innerHTML = '<p class="muted small">Загрузка…</p>';
-    return t.card('id').then(function (c) {
-      var cardId = c.id;
+    var cid = ctxCardId();
+    var cardP = cid ? Promise.resolve(cid) : t.card('id').then(function (c) { return c.id; });
+    return cardP.then(function (cardId) {
       lastRendered = cardId;
       return Promise.all([Epic.isSubscription(t, cardId), Epic.getParent(t, cardId), Epic.getToken(t)]).then(function (r) {
         DBG = { card: cardId, sub: r[0], parent: r[1], token: !!r[2] };

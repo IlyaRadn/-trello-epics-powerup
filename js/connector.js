@@ -104,12 +104,17 @@
     },
 
     // ---- section on the back of the card (ALWAYS shown; handles all states) ----
+    // Put the card id in the URL so each card gets its OWN iframe (Trello otherwise
+    // reuses the previous card's iframe on t.showCard navigation), and so the
+    // section reads its true card id from the URL instead of a stale t.card().
     'card-back-section': function (t) {
-      return {
-        title: 'Duck Epics',
-        icon: ICON,
-        content: { type: 'iframe', url: t.signUrl(url('views/section.html?v=21')), height: 200 },
-      };
+      return t.card('id').then(function (c) {
+        return {
+          title: 'Duck Epics',
+          icon: ICON,
+          content: { type: 'iframe', url: t.signUrl(url('views/section.html?v=22&c=' + c.id)), height: 200 },
+        };
+      });
     },
 
     // ---- authorization ----
