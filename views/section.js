@@ -22,8 +22,11 @@
   function fmtDate(iso) { try { var d = new Date(iso); return d.getDate() + ' ' + MON[d.getMonth()]; } catch (e) { return ''; } }
   function hue(id) { var h = 0, str = String(id); for (var i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0; return h % 360; }
   function avatarHtml(m) {
-    var ini = ((m.initials || (m.fullName || m.username || '?')) + '').slice(0, 2).toUpperCase();
-    return '<span class="av" title="' + Views.esc(m.fullName || m.username || '') + '" style="background:hsl(' + hue(m.id) + ',55%,52%)">' + Views.esc(ini) + '</span>';
+    var name = Views.esc(m.fullName || m.username || '');
+    var ini = Views.esc(((m.initials || (m.fullName || m.username || '?')) + '').slice(0, 2).toUpperCase());
+    // Real Trello avatar photo when present; initials circle otherwise (or on load error).
+    var img = m.avatarUrl ? '<img src="' + Views.esc(m.avatarUrl) + '/30.png" onerror="this.remove()" alt="">' : '';
+    return '<span class="av" title="' + name + '" style="background:hsl(' + hue(m.id) + ',55%,52%)">' + ini + img + '</span>';
   }
   function subRow(it) {
     var meta = '';
@@ -101,42 +104,57 @@
 
   // ---------- subscription (parent) ----------
   function renderParent(cardId) {
-    // Fetch cards/lists once; only hit REST for archived if a child is missing
-    // from the active set (big speed win on large boards).
-    return Promise.all([t.cards('id', 'name', 'idList', 'closed', 'due', 'dueComplete', 'badges', 'members'), t.lists('id', 'name'), Epic.getChildren(t, cardId), Epic.getIcon(t, cardId)])
-      .then(function (r0) {
-        var active = r0[0], lists = r0[1], childIds = r0[2], icon = r0[3];
+    return Promise.all([Epic.getChildren(t, cardId), Epic.getIcon(t, cardId), t.lists('id', 'name')]).then(function (pre) {
+      var childIds = pre[0], icon = pre[1], lists = pre[2];
+      // Stage 1 — minimal fields (fast): show the list immediately.
+      return t.cards('id', 'name', 'idList', 'closed').then(function (active) {
         var have = {}; active.forEach(function (c) { have[c.id] = 1; });
         var missing = childIds.some(function (id) { return !have[id]; });
         var archP = missing ? t.board('id').then(function (b) { return Epic.fetchArchived(t, b.id); }) : Promise.resolve({});
         return archP.then(function (arch) {
-          return Epic.computeStats(t, cardId, { activeCards: active, lists: lists, archivedById: arch }).then(function (s) { return [s, icon]; });
+          return Epic.computeStats(t, cardId, { activeCards: active, lists: lists, archivedById: arch }).then(function (s) {
+            paintParent(cardId, s, icon); fit();
+            // Stage 2 — enrich with due/checklist/members in the background.
+            t.cards('id', 'name', 'idList', 'closed', 'due', 'dueComplete', 'badges', 'members')
+              .then(function (rich) { return Epic.computeStats(t, cardId, { activeCards: rich, lists: lists, archivedById: arch }); })
+              .then(function (s2) { if (!busy) { paintParent(cardId, s2, icon); fit(); } })
+              .catch(function () {});
+          });
         });
-      })
-      .then(function (r) {
-        var s = r[0], icon = r[1];
-        var pct = s.total ? Math.round(100 * s.done / s.total) : 0;
-        var rows = s.items.map(subRow).join('');
-        if (!s.total) rows = '<p class="muted small">Пока нет подзадач — «+ Sub-task» создаст новую, «🔗 Привязать» добавит существующую.</p>';
-
-        root.innerHTML =
-          '<div class="progress"><b style="font-size:16px">' + icon + '</b>' +
-          '<div class="bar"><i style="width:' + pct + '%"></i></div>' +
-          '<span class="small muted">' + s.done + '/' + s.total + ' done</span></div>' +
-          '<div class="toolbar"><button class="iconbtn" id="ic" title="Значок">' + icon + '</button>' +
-          '<button class="btn primary" id="new">+ Sub-task</button>' +
-          '<button class="btn" id="link">🔗 Привязать</button>' +
-          '<button class="btn" id="un">Unmark</button></div>' +
-          '<div class="list">' + rows + '</div>';
-
-        root.querySelectorAll('.list .sub').forEach(function (el) {
-          el.addEventListener('click', function () { t.showCard(el.getAttribute('data-id')); });
-        });
-        document.getElementById('ic').addEventListener('click', function () { showIconPicker(cardId); });
-        document.getElementById('new').addEventListener('click', function () { showCreateForm(cardId); });
-        document.getElementById('link').addEventListener('click', function () { showLinkExisting(cardId); });
-        document.getElementById('un').addEventListener('click', function () { Epic.unmakeSubscription(t, cardId).then(render); });
       });
+    });
+  }
+
+  function paintParent(cardId, s, icon) {
+    var pct = s.total ? Math.round(100 * s.done / s.total) : 0;
+    var body;
+    if (!s.total) {
+      body = '<p class="muted small">Пока нет подзадач — «+ Sub-task» создаст новую, «🔗 Привязать» добавит существующую.</p>';
+    } else {
+      // Group sub-tasks by column (status), like Hello Epics' board view.
+      var groups = {}, order = [];
+      s.items.forEach(function (it) { if (!groups[it.list]) { groups[it.list] = []; order.push(it.list); } groups[it.list].push(it); });
+      body = order.map(function (ln) {
+        return '<div class="grp"><div class="grp-h">' + Views.esc(ln) + ' <span class="grp-n">' + groups[ln].length + '</span></div>' +
+          '<div class="list">' + groups[ln].map(subRow).join('') + '</div></div>';
+      }).join('');
+    }
+    root.innerHTML =
+      '<div class="progress"><b style="font-size:16px">' + icon + '</b>' +
+      '<div class="bar"><i style="width:' + pct + '%"></i></div>' +
+      '<span class="small muted">' + s.done + '/' + s.total + ' done</span></div>' +
+      '<div class="toolbar"><button class="iconbtn" id="ic" title="Значок">' + icon + '</button>' +
+      '<button class="btn primary" id="new">+ Sub-task</button>' +
+      '<button class="btn" id="link">🔗 Привязать</button>' +
+      '<button class="btn" id="un">Unmark</button></div>' + body;
+
+    root.querySelectorAll('.sub').forEach(function (el) {
+      el.addEventListener('click', function () { t.showCard(el.getAttribute('data-id')); });
+    });
+    document.getElementById('ic').addEventListener('click', function () { showIconPicker(cardId); });
+    document.getElementById('new').addEventListener('click', function () { showCreateForm(cardId); });
+    document.getElementById('link').addEventListener('click', function () { showLinkExisting(cardId); });
+    document.getElementById('un').addEventListener('click', function () { Epic.unmakeSubscription(t, cardId).then(render); });
   }
 
   function showCreateForm(cardId) {
