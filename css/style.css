@@ -92,6 +92,7 @@ select.move.done { background-color: var(--green-bg); color: var(--green); borde
 /* colored Trello labels (child view) */
 .label { font-size: 11px; height: 24px; padding: 0 8px; border-radius: 6px; display: inline-flex; align-items: center; white-space: nowrap; font-weight: 600; }
 .childmeta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.childmeta .avs { margin-left: auto; }
 .sub .meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .chips { display: flex; flex-direction: row; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
 .ctl { display: flex; }
