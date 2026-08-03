@@ -1,7 +1,7 @@
 /* global Epic, Views */
 /* S3 — popup: attach the current card to a Subscription (or detach). */
 Views.chooseParent = function (t, root) {
-  root.innerHTML = '<p class="muted small">Загрузка…</p>';
+  root.innerHTML = '<p class="muted small">Loading…</p>';
   var selfId;
   return t.card('id').then(function (c) {
     selfId = c.id;
@@ -13,8 +13,8 @@ Views.chooseParent = function (t, root) {
     var opts = subs.filter(function (id) { return id !== selfId; });
 
     if (!opts.length) {
-      root.innerHTML = '<p class="muted small">На доске ещё нет Subscription.<br>' +
-        'Откройте карточку-клиент и нажмите «Make Subscription».</p>';
+      root.innerHTML = '<p class="muted small">No Subscriptions on this board yet.<br>' +
+        'Open a client card and click "Make Subscription".</p>';
       if (t.sizeTo) t.sizeTo(document.body);
       return;
     }
@@ -22,9 +22,9 @@ Views.chooseParent = function (t, root) {
     var html = '<div class="list">' + opts.map(function (id) {
       return '<button class="item ' + (id === current ? 'selected' : '') + '" data-id="' + id + '">' +
         '<span class="name">' + Views.esc(nameOf[id] || '(card)') + '</span>' +
-        (id === current ? '<span class="pill done">текущий</span>' : '') + '</button>';
+        (id === current ? '<span class="pill done">current</span>' : '') + '</button>';
     }).join('') + '</div>';
-    if (current) html += '<div class="actions"><button class="btn danger" id="detach">Отвязать от Subscription</button></div>';
+    if (current) html += '<div class="actions"><button class="btn danger" id="detach">Detach from Subscription</button></div>';
     html += '<p class="small muted" id="msg"></p>';
     root.innerHTML = html;
 
@@ -34,7 +34,7 @@ Views.chooseParent = function (t, root) {
           .then(function () { return t.closePopup(); })
           .catch(function (e) {
             root.querySelector('#msg').textContent = (e.message === 'cycle')
-              ? 'Нельзя: получится циклическая связь.' : 'Ошибка: ' + e.message;
+              ? 'Not allowed: this would create a cycle.' : 'Error: ' + e.message;
           });
       });
     });

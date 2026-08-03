@@ -11,8 +11,8 @@ Views.iconPicker = function (t, root) {
     }).join('');
     root.innerHTML =
       '<div class="grid">' + grid + '</div>' +
-      '<label>Или свой эмодзи</label>' +
-      '<input type="text" id="custom" maxlength="4" placeholder="😀 и Enter">';
+      '<label>Or a custom emoji</label>' +
+      '<input type="text" id="custom" maxlength="4" placeholder="😀 then Enter">';
 
     root.querySelectorAll('.grid button').forEach(function (b) {
       b.addEventListener('click', function () {

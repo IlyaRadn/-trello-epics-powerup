@@ -5,7 +5,7 @@
  *
  * Auth: our own OAuth — open Trello's authorize page in a real window,
  * capture the token via postMessage from views/auth-return.html, store it
- * member-private. "+ Sub-task" creates a new card (needs token); "🔗 Привязать"
+ * member-private. "+ Sub-task" creates a new card (needs token); "🔗 Link"
  * links an existing board card (no auth).
  */
 (function () {
@@ -15,7 +15,7 @@
   var LIMIT = 30;
   var MEMBER_AVATARS = {}; // memberId -> avatarUrl (from REST, cached across renders)
   var lastRendered = null; // id of the card we last rendered for (navigation watch)
-  var painted = false; // once painted, re-renders keep old content (no "Загрузка" flicker)
+  var painted = false; // once painted, re-renders keep old content (no "Loading" flicker)
   var expandedList = false; // subscription list: collapsed to 10 vs "view all"
   var lastPaint = null; // {cardId,s,icon} so the toggle can repaint without refetch
   var STATUS_LISTS = []; // [{id,name}] workflow columns shown as move targets
@@ -110,7 +110,7 @@
   }
 
   // ---- rich sub-task row (name + checklist + due + column + assignees) ----
-  var MON = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+  var MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   function fmtDate(iso) { try { var d = new Date(iso); return d.getDate() + ' ' + MON[d.getMonth()]; } catch (e) { return ''; } }
   function hue(id) { var h = 0, str = String(id); for (var i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0; return h % 360; }
   function avatarHtml(m) {
@@ -127,7 +127,7 @@
     if (it.listId && !STATUS_LISTS.some(function (l) { return l.id === it.listId; })) {
       opts = '<option value="' + it.listId + '" selected>' + Views.esc(it.list) + '</option>' + opts;
     }
-    return '<select class="move' + (it.done ? ' done' : '') + '" data-id="' + it.id + '" title="Переместить в колонку">' + opts + '</select>';
+    return '<select class="move' + (it.done ? ' done' : '') + '" data-id="' + it.id + '" title="Move to column">' + opts + '</select>';
   }
   function subRow(it) {
     var avs = (it.members || []).slice(0, 3).map(avatarHtml).join('');
@@ -148,18 +148,18 @@
 
     // ---- active row: SAME vertical scheme as archive ----
     // line 1: ✓ done-toggle + name (+ avatar pinned right)   line 2: chips   line 3: status
-    var dueLabel = it.due ? '🕐 ' + fmtDate(it.due) : '📅 дата';
+    var dueLabel = it.due ? '🕐 ' + fmtDate(it.due) : '📅 date';
     // A transparent native date input overlays the pill; its calendar-picker-indicator
     // is stretched to fill it (see CSS), so a direct click on the pill opens the native
     // date picker — works inside Trello's cross-origin iframe where showPicker() is blocked.
     var dueVal = isoToInputVal(it.due);
-    var chips = '<span class="pill due-edit' + (it.dueComplete ? ' done' : '') + dueClass(it) + (it.due ? '' : ' empty') + '" title="Изменить дату">' +
+    var chips = '<span class="pill due-edit' + (it.dueComplete ? ' done' : '') + dueClass(it) + (it.due ? '' : ' empty') + '" title="Change date">' +
       dueLabel +
       '<input type="date" class="due-ovl" data-due-id="' + it.id + '" data-due="' + (it.due || '') + '"' + (dueVal ? ' value="' + dueVal + '"' : '') + '></span>';
     if (it.checkItems) chips += '<span class="pill ' + (it.checkItemsChecked === it.checkItems ? 'done' : '') + '">☑ ' + it.checkItemsChecked + '/' + it.checkItems + '</span>';
 
-    var check = '<span class="check' + (it.done ? ' on' : '') + '" data-id="' + it.id + '" title="' + (it.done ? 'Снять «готово»' : 'Отметить готовой') + '"></span>';
-    var avsCell = '<span class="avs avs-edit" data-id="' + it.id + '" title="Исполнитель">' + (avs || '<span class="av-add">+</span>') + '</span>';
+    var check = '<span class="check' + (it.done ? ' on' : '') + '" data-id="' + it.id + '" title="' + (it.done ? 'Mark as not done' : 'Mark as done') + '"></span>';
+    var avsCell = '<span class="avs avs-edit" data-id="' + it.id + '" title="Assignee">' + (avs || '<span class="av-add">+</span>') + '</span>';
     var inner =
       '<div class="toprow">' + check + nameHtml + avsCell + '</div>' +
       '<div class="meta"><span class="chips">' + chips + '</span></div>' +
@@ -210,7 +210,7 @@
   function render() {
     busy = false;
     root = document.getElementById('root');
-    if (!painted) root.innerHTML = '<p class="muted small">Загрузка…</p>';
+    if (!painted) root.innerHTML = '<p class="muted small">Loading…</p>';
     var cid = ctxCardId();
     var cardP = cid ? Promise.resolve(cid) : t.card('id').then(function (c) { return c.id; });
     return cardP.then(function (cardId) {
@@ -222,18 +222,18 @@
         return renderNone(cardId);
       });
     }).then(function () { painted = true; fit(); }).catch(function (e) {
-      root.innerHTML = '<p class="small" style="color:#bf2600">Ошибка: ' + Views.esc(e && e.message) + '</p>';
+      root.innerHTML = '<p class="small" style="color:#bf2600">Error: ' + Views.esc(e && e.message) + '</p>';
       fit();
     });
   }
 
-  function backBar() { return '<div class="actions" style="margin-bottom:6px"><button class="btn" id="cx">← Назад</button></div>'; }
+  function backBar() { return '<div class="actions" style="margin-bottom:6px"><button class="btn" id="cx">← Back</button></div>'; }
   function wireBack() { var b = document.getElementById('cx'); if (b) b.addEventListener('click', render); }
 
   // ---------- unlinked ----------
   function renderNone(cardId) {
     root.innerHTML =
-      '<p class="muted small">Эта карточка не связана.</p>' +
+      '<p class="muted small">This card is not linked.</p>' +
       '<div class="actions">' +
       '<button class="btn primary" id="mk">Make Subscription</button>' +
       '<button class="btn" id="at">Attach to Subscription</button></div>';
@@ -248,9 +248,9 @@
       var subs = r[0].filter(function (id) { return id !== cardId; });
       var nameOf = {}; r[1].forEach(function (x) { nameOf[x.id] = x.name; });
       root.innerHTML = backBar() + (subs.length
-        ? '<p class="small muted">Выберите Subscription:</p><div class="list">' +
+        ? '<p class="small muted">Choose a Subscription:</p><div class="list">' +
           subs.map(function (id) { return '<button class="item" data-id="' + id + '"><span class="name">' + Views.esc(nameOf[id] || '(card)') + '</span></button>'; }).join('') + '</div>'
-        : '<p class="muted small">На доске ещё нет Subscription.</p>');
+        : '<p class="muted small">No Subscriptions on this board yet.</p>');
       wireBack();
       root.querySelectorAll('.list .item').forEach(function (el) {
         el.addEventListener('click', function () { Epic.setParent(t, cardId, el.getAttribute('data-id')).then(render).catch(function () { render(); }); });
@@ -265,7 +265,7 @@
       var childIds = pre[0], icon = pre[1], lists = pre[2], statusCfg = pre[3];
       ALL_LISTS = lists;
       DONE_LIST_ID = Epic.findDoneListId(lists);
-      // Status columns = configured subset, or (default) all lists except the «Подписка» parent lists.
+      // Status columns = configured subset, or (default) all lists except the «Подписка»/Subscription parent lists.
       STATUS_LISTS = lists.filter(function (l) { return statusCfg ? statusCfg.indexOf(l.id) >= 0 : !/подписк/i.test(l.name); });
       // Stage 1 — minimal fields (fast): show the list immediately.
       return t.cards('id', 'name', 'idList', 'closed', 'url').then(function (active) {
@@ -305,7 +305,7 @@
     var pct = s.total ? Math.round(100 * s.done / s.total) : 0;
     var body;
     if (!s.total) {
-      body = '<p class="muted small">Пока нет подзадач — «+ Sub-task» создаст новую, «🔗 Привязать» добавит существующую.</p>';
+      body = '<p class="muted small">No sub-tasks yet — "+ Sub-task" creates one, "🔗 Link" adds an existing card.</p>';
     } else {
       // Group active sub-tasks by column (status); archived go to their own group.
       var groups = {}, order = [], archived = [];
@@ -337,7 +337,7 @@
       }
       if (archived.length) {
         var ac = !!collapsedGroups.archived;
-        body += '<div class="grp">' + grpHead('archived', '📦 Архив', archived.length, ac) +
+        body += '<div class="grp">' + grpHead('archived', '📦 Archived', archived.length, ac) +
           (ac ? '' : '<div class="list">' + archived.map(subRow).join('') + '</div>') + '</div>';
       }
     }
@@ -345,11 +345,11 @@
       '<div class="progress"><b style="font-size:16px">' + icon + '</b>' +
       '<div class="bar"><i style="width:' + pct + '%"></i></div>' +
       '<span class="small muted">' + s.done + '/' + s.total + ' done</span></div>' +
-      '<div class="toolbar"><button class="iconbtn" id="ic" title="Значок">' + icon + '</button>' +
+      '<div class="toolbar"><button class="iconbtn" id="ic" title="Icon">' + icon + '</button>' +
       '<button class="btn primary" id="new">+ Sub-task</button>' +
-      '<button class="btn" id="link">🔗 Привязать</button>' +
+      '<button class="btn" id="link">🔗 Link</button>' +
       '<button class="btn" id="un">Unmark</button>' +
-      '<button class="iconbtn" id="cols" title="Настроить колонки">⚙</button></div>' + body;
+      '<button class="iconbtn" id="cols" title="Configure columns">⚙</button></div>' + body;
 
     // Collapse / expand a column group by clicking its header.
     root.querySelectorAll('.grp-h[data-key]').forEach(function (h) {
@@ -446,9 +446,9 @@
       return '<label><input type="checkbox" value="' + l.id + '"' + (current[l.id] ? ' checked' : '') + '> ' + Views.esc(l.name) + '</label>';
     }).join('');
     root.innerHTML = backBar() +
-      '<p class="small muted">Отметьте колонки-статусы — только в них можно перемещать подзадачи:</p>' +
+      '<p class="small muted">Check the status columns — sub-tasks can only be moved into these:</p>' +
       '<div class="cols">' + rows + '</div>' +
-      '<div class="actions"><button class="btn primary" id="save">Сохранить</button></div>';
+      '<div class="actions"><button class="btn primary" id="save">Save</button></div>';
     wireBack();
     document.getElementById('save').addEventListener('click', function () {
       var ids = [];
@@ -465,14 +465,14 @@
     if (lastPaint && lastPaint.s) lastPaint.s.items.forEach(function (it) { if (it.id === cardId) item = it; });
     var assigned = {}; (item && item.members ? item.members : []).forEach(function (m) { assigned[m.id] = 1; });
     var changed = false;
-    root.innerHTML = backBar() + '<p class="muted small">Загрузка участников…</p>';
+    root.innerHTML = backBar() + '<p class="muted small">Loading members…</p>';
     document.getElementById('cx').addEventListener('click', function () { changed ? render() : backToList(cardId); });
     t.board('id').then(function (b) { return Epic.fetchMembers(t, b.id); }).then(function (map) {
       var members = Object.keys(map).map(function (id) { return map[id]; });
       members.sort(function (a, b2) { return (a.fullName || a.username || '').localeCompare(b2.fullName || b2.username || ''); });
       root.innerHTML = backBar() +
-        '<label>Исполнители подзадачи</label>' +
-        '<input type="text" id="mflt" placeholder="Поиск по имени…" autocomplete="off">' +
+        '<label>Assignees</label>' +
+        '<input type="text" id="mflt" placeholder="Search by name…" autocomplete="off">' +
         '<div class="list" id="mlist"></div>';
       document.getElementById('cx').addEventListener('click', function () { changed ? render() : backToList(cardId); });
       var flt = document.getElementById('mflt');
@@ -484,7 +484,7 @@
           return '<button class="item member' + (assigned[m.id] ? ' selected' : '') + '" data-id="' + m.id + '">' +
             avatarHtml(m) + '<span class="name">' + Views.esc(m.fullName || m.username || m.id) + '</span>' +
             '<span class="pill done mchk"' + (assigned[m.id] ? '' : ' style="visibility:hidden"') + '>✓</span></button>';
-        }).join('') || '<p class="muted small">Никого не найдено.</p>';
+        }).join('') || '<p class="muted small">No one found.</p>';
         root.querySelectorAll('.member').forEach(function (el) {
           el.addEventListener('click', function () {
             var id = el.getAttribute('data-id');
@@ -504,7 +504,7 @@
       flt.focus();
       paintList();
     }).catch(function () {
-      root.innerHTML = backBar() + '<p class="small" style="color:#bf2600">Не удалось загрузить участников.</p>';
+      root.innerHTML = backBar() + '<p class="small" style="color:#bf2600">Failed to load members.</p>';
       document.getElementById('cx').addEventListener('click', function () { render(); });
       fit();
     });
@@ -523,23 +523,23 @@
       var opts = lists.map(function (l) { return '<option value="' + l.id + '"' + (l.id === cur.idList ? ' selected' : '') + '>' + Views.esc(l.name) + '</option>'; }).join('');
       root.innerHTML = backBar() +
         (isAuthed ? '' :
-          '<p class="small" style="color:#974f0c;margin:0 0 6px">Создание новой карточки требует однократной авторизации Trello.</p>' +
+          '<p class="small" style="color:#974f0c;margin:0 0 6px">Creating a new card requires a one-time Trello authorization.</p>' +
           '<div class="actions" style="margin-bottom:8px"><button class="btn primary" id="auth">Authorize</button></div>') +
-        '<label>Название новой подзадачи</label><input type="text" id="nm" placeholder="SUB - ..." autocomplete="off">' +
-        '<label>Колонка</label><select id="ls">' + opts + '</select>' +
-        '<div class="actions"><button class="btn primary" id="cr" disabled>Создать</button></div>' +
+        '<label>New sub-task name</label><input type="text" id="nm" placeholder="SUB - ..." autocomplete="off">' +
+        '<label>Column</label><select id="ls">' + opts + '</select>' +
+        '<div class="actions"><button class="btn primary" id="cr" disabled>Create</button></div>' +
         '<p class="small muted" id="msg"></p>';
       wireBack();
       var au = document.getElementById('auth');
-      if (au) au.addEventListener('click', function () { au.textContent = 'Открываю окно Trello…'; au.disabled = true; doAuthorize(function () { showCreateForm(cardId); }); });
+      if (au) au.addEventListener('click', function () { au.textContent = 'Opening Trello window…'; au.disabled = true; doAuthorize(function () { showCreateForm(cardId); }); });
       var nm = document.getElementById('nm'), cr = document.getElementById('cr');
       nm.addEventListener('input', function () { cr.disabled = !nm.value.trim() || !isAuthed; });
       if (isAuthed) nm.focus();
       cr.addEventListener('click', function () {
-        cr.disabled = true; document.getElementById('msg').textContent = 'Создаю…';
+        cr.disabled = true; document.getElementById('msg').textContent = 'Creating…';
         Epic.createSubtask(t, { name: nm.value.trim(), idList: document.getElementById('ls').value, parentId: cardId })
           .then(render)
-          .catch(function (e) { document.getElementById('msg').textContent = (e.message === 'auth') ? 'Сначала Authorize.' : 'Ошибка: ' + e.message; cr.disabled = false; });
+          .catch(function (e) { document.getElementById('msg').textContent = (e.message === 'auth') ? 'Authorize first.' : 'Error: ' + e.message; cr.disabled = false; });
       });
       fit();
     });
@@ -555,17 +555,17 @@
 
     // Panel shell is painted immediately; cards fill in without blocking.
     root.innerHTML = backBar() +
-      '<label>Привязать существующую карточку</label>' +
-      '<input type="text" id="flt" placeholder="Поиск по названию…" autocomplete="off">' +
+      '<label>Link an existing card</label>' +
+      '<input type="text" id="flt" placeholder="Search by name…" autocomplete="off">' +
       '<div class="filters">' +
-      '<select id="colf"><option value="">Все колонки</option></select>' +
+      '<select id="colf"><option value="">All columns</option></select>' +
       '<select id="sortf">' +
-      '<option value="new">Сначала новые</option>' +
-      '<option value="act">По активности</option>' +
-      '<option value="old">Сначала старые</option>' +
-      '<option value="name">По алфавиту</option>' +
+      '<option value="new">Newest first</option>' +
+      '<option value="act">By activity</option>' +
+      '<option value="old">Oldest first</option>' +
+      '<option value="name">Alphabetical</option>' +
       '</select></div>' +
-      '<div class="list" id="cand"><p class="muted small">Загрузка карточек…</p></div>';
+      '<div class="list" id="cand"><p class="muted small">Loading cards…</p></div>';
     wireBack();
     var flt = document.getElementById('flt');
     var colf = document.getElementById('colf');
@@ -574,11 +574,11 @@
     function paint() {
       var html = current.slice(0, shownN).map(function (c) {
         return '<button class="item" data-id="' + c.id + '"><span class="name">' + Views.esc(c.name) + '</span><span class="pill">' + Views.esc(listName[c.idList] || '') + '</span></button>';
-      }).join('') || '<p class="muted small">' + (loadedFull ? 'Ничего не найдено.' : 'Загрузка карточек…') + '</p>';
+      }).join('') || '<p class="muted small">' + (loadedFull ? 'Nothing found.' : 'Loading cards…') + '</p>';
       if (current.length > shownN) {
-        html += '<div class="actions" style="margin-top:8px"><button class="btn" id="more">Показать ещё (' + (current.length - shownN) + ')</button></div>';
+        html += '<div class="actions" style="margin-top:8px"><button class="btn" id="more">Show more (' + (current.length - shownN) + ')</button></div>';
       }
-      if (!loadedFull) html += '<p class="small muted" style="margin-top:6px">Подгружаю остальные карточки…</p>';
+      if (!loadedFull) html += '<p class="small muted" style="margin-top:6px">Loading the rest of the cards…</p>';
       document.getElementById('cand').innerHTML = html;
       root.querySelectorAll('#cand .item').forEach(function (el) {
         el.addEventListener('click', function () { Epic.setParent(t, el.getAttribute('data-id'), parentId).then(render).catch(function () { render(); }); });
@@ -612,7 +612,7 @@
     Promise.all([t.lists('id', 'name'), Epic.getChildren(t, parentId), t.cards('id', 'name', 'idList', 'dateLastActivity')]).then(function (r) {
       r[0].forEach(function (l) { listName[l.id] = l.name; });
       // Populate the column filter with the board's lists.
-      colf.innerHTML = '<option value="">Все колонки</option>' + r[0].map(function (l) { return '<option value="' + l.id + '">' + Views.esc(l.name) + '</option>'; }).join('');
+      colf.innerHTML = '<option value="">All columns</option>' + r[0].map(function (l) { return '<option value="' + l.id + '">' + Views.esc(l.name) + '</option>'; }).join('');
       r[1].forEach(function (id) { taken[id] = 1; }); taken[parentId] = 1;
       rebuild(r[2] || []);
       // Stage 2 (background): full board via REST → merge in, keeping the search box focus.
@@ -626,7 +626,7 @@
   function showIconPicker(cardId) {
     busy = true;
     var grid = Epic.ICON_PALETTE.map(function (e) { return '<button data-e="' + e + '">' + e + '</button>'; }).join('');
-    root.innerHTML = backBar() + '<p class="small muted">Значок Subscription:</p><div class="grid">' + grid + '</div>';
+    root.innerHTML = backBar() + '<p class="small muted">Subscription icon:</p><div class="grid">' + grid + '</div>';
     wireBack();
     root.querySelectorAll('.grid button').forEach(function (b) {
       b.addEventListener('click', function () { Epic.setIcon(t, cardId, b.getAttribute('data-e')).then(render); });
@@ -660,7 +660,7 @@
       if (chips || avs) extra = '<div class="childmeta">' + chips + (avs ? '<span class="avs">' + avs + '</span>' : '') + '</div>';
     }
     root.innerHTML =
-      '<p class="small muted">Подписка этой подзадачи:</p>' +
+      '<p class="small muted">Parent Subscription:</p>' +
       '<button class="item" data-url="' + Views.esc(url) + '"><span>' + icon + '</span>' +
       '<span class="name">' + Views.esc(name) + '</span>' +
       '<span class="pill">Subscription</span></button>' +

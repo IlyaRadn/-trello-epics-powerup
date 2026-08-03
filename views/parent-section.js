@@ -1,7 +1,7 @@
 /* global Epic, Views */
 /* S7 — Subscription card back section: progress + list of sub-tasks. */
 Views.parentSection = function (t, root) {
-  root.innerHTML = '<p class="muted small">Загрузка…</p>';
+  root.innerHTML = '<p class="muted small">Loading…</p>';
   var cardId;
   return t.card('id').then(function (c) {
     cardId = c.id;
@@ -21,13 +21,13 @@ Views.parentSection = function (t, root) {
         '<span class="name">' + Views.esc(it.name) + (it.archived ? ' 📦' : '') + '</span>' +
         '<span class="pill ' + (it.done ? 'done' : '') + '">' + Views.esc(it.list) + '</span></button>';
     }).join('');
-    if (!s.total) rows = '<p class="muted small">Пока нет подзадач. Нажмите «Add Sub-task» на карточке.</p>';
+    if (!s.total) rows = '<p class="muted small">No sub-tasks yet. Click "Add Sub-task" on the card.</p>';
 
     root.innerHTML =
       '<div class="progress"><b style="font-size:16px">' + icon + '</b>' +
       '<div class="bar"><i style="width:' + pct + '%"></i></div>' +
       '<span class="small muted">' + s.done + '/' + s.total + ' done</span></div>' +
-      '<div class="toolbar"><button class="iconbtn" id="chIcon" title="Сменить значок">' + icon + '</button>' +
+      '<div class="toolbar"><button class="iconbtn" id="chIcon" title="Change icon">' + icon + '</button>' +
       '<span class="small muted">Sub-tasks</span></div>' +
       '<div class="list">' + rows + '</div>';
 
@@ -35,7 +35,7 @@ Views.parentSection = function (t, root) {
       el.addEventListener('click', function () { t.showCard(el.getAttribute('data-id')); });
     });
     root.querySelector('#chIcon').addEventListener('click', function () {
-      t.popup({ title: 'Значок Subscription', url: './icon-picker.html', height: 260 });
+      t.popup({ title: 'Subscription icon', url: './icon-picker.html', height: 260 });
     });
     if (t.sizeTo) t.sizeTo(document.body);
   });

@@ -1,7 +1,7 @@
 /* global Epic, Views */
 /* S4 — popup form: create a new Sub-task card under the current Subscription. */
 Views.createSubtask = function (t, root) {
-  root.innerHTML = '<p class="muted small">Загрузка…</p>';
+  root.innerHTML = '<p class="muted small">Loading…</p>';
   return Promise.all([t.card('id', 'idList'), t.lists('id', 'name'), t.board('name')]).then(function (r) {
     var card = r[0], lists = r[1], board = r[2];
     var listOpts = lists.map(function (l) {
@@ -9,13 +9,13 @@ Views.createSubtask = function (t, root) {
     }).join('');
 
     root.innerHTML =
-      '<label>Название подзадачи</label>' +
+      '<label>Sub-task name</label>' +
       '<input type="text" id="name" placeholder="SUB - ..." autocomplete="off">' +
-      '<label>Доска</label>' +
-      '<select id="board" disabled><option>' + Views.esc(board.name) + ' (текущая)</option></select>' +
-      '<label>Колонка</label><select id="list">' + listOpts + '</select>' +
-      '<div class="actions"><button class="btn primary" id="create" disabled>Создать</button>' +
-      '<button class="btn" id="cancel">Отмена</button></div>' +
+      '<label>Board</label>' +
+      '<select id="board" disabled><option>' + Views.esc(board.name) + ' (current)</option></select>' +
+      '<label>Column</label><select id="list">' + listOpts + '</select>' +
+      '<div class="actions"><button class="btn primary" id="create" disabled>Create</button>' +
+      '<button class="btn" id="cancel">Cancel</button></div>' +
       '<p class="small muted" id="msg"></p>';
 
     var name = root.querySelector('#name'), create = root.querySelector('#create'), msg = root.querySelector('#msg');
@@ -23,7 +23,7 @@ Views.createSubtask = function (t, root) {
     name.focus();
 
     create.addEventListener('click', function () {
-      create.disabled = true; msg.textContent = 'Создаю…';
+      create.disabled = true; msg.textContent = 'Creating…';
       Epic.createSubtask(t, {
         name: name.value.trim(),
         idList: root.querySelector('#list').value,
@@ -31,8 +31,8 @@ Views.createSubtask = function (t, root) {
       }).then(function () { return t.closePopup(); })
         .catch(function (e) {
           if (e.message === 'auth') {
-            msg.innerHTML = 'Нужна авторизация Trello (для создания карточек).<br>Откройте настройки Power-Up → Authorize.';
-          } else { msg.textContent = 'Ошибка: ' + e.message; }
+            msg.innerHTML = 'Trello authorization required (to create cards).<br>Open Power-Up settings → Authorize.';
+          } else { msg.textContent = 'Error: ' + e.message; }
           create.disabled = false;
         });
     });
