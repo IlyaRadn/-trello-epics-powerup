@@ -516,53 +516,54 @@
 
   function showLinkExisting(parentId) {
     busy = true;
-    root.innerHTML = '<p class="muted small">Загрузка карточек…</p>';
-    t.board('id').then(function (b) {
-      return Promise.all([
-        Epic.fetchBoardCards(t, b.id),         // all cards via REST (or null)
-        t.cards('id', 'name', 'idList'),       // fallback: client-loaded cards
-        t.lists('id', 'name'),
-        Epic.getChildren(t, parentId),
-      ]);
-    }).then(function (r) {
-      var cards = r[0] || r[1], lists = r[2], existing = r[3];
-      var listName = {}; lists.forEach(function (l) { listName[l.id] = l.name; });
-      var taken = {}; existing.forEach(function (id) { taken[id] = 1; }); taken[parentId] = 1;
-      var allCandidates = cards.filter(function (c) { return !taken[c.id]; });
-      var PAGE = 10;
-      var shownN = PAGE;
-      var current = allCandidates;
+    var PAGE = 10, shownN = PAGE;
+    var listName = {}, taken = {}, allCandidates = [], current = [], loadedFull = false;
 
-      function paint() {
-        var html = current.slice(0, shownN).map(function (c) {
-          return '<button class="item" data-id="' + c.id + '"><span class="name">' + Views.esc(c.name) + '</span><span class="pill">' + Views.esc(listName[c.idList] || '') + '</span></button>';
-        }).join('') || '<p class="muted small">Ничего не найдено.</p>';
-        if (current.length > shownN) {
-          html += '<div class="actions" style="margin-top:8px"><button class="btn" id="more">Показать ещё (' + (current.length - shownN) + ')</button></div>';
-        }
-        document.getElementById('cand').innerHTML = html;
-        root.querySelectorAll('#cand .item').forEach(function (el) {
-          el.addEventListener('click', function () { Epic.setParent(t, el.getAttribute('data-id'), parentId).then(render).catch(function () { render(); }); });
-        });
-        var m = document.getElementById('more');
-        if (m) m.addEventListener('click', function () { shownN += PAGE; paint(); });
-        fit();
+    // Panel shell is painted immediately; cards fill in without blocking.
+    root.innerHTML = backBar() +
+      '<label>Привязать существующую карточку</label>' +
+      '<input type="text" id="flt" placeholder="Поиск по названию…" autocomplete="off">' +
+      '<div class="list" id="cand"><p class="muted small">Загрузка карточек…</p></div>';
+    wireBack();
+    var flt = document.getElementById('flt');
+
+    function paint() {
+      var html = current.slice(0, shownN).map(function (c) {
+        return '<button class="item" data-id="' + c.id + '"><span class="name">' + Views.esc(c.name) + '</span><span class="pill">' + Views.esc(listName[c.idList] || '') + '</span></button>';
+      }).join('') || '<p class="muted small">' + (loadedFull ? 'Ничего не найдено.' : 'Загрузка карточек…') + '</p>';
+      if (current.length > shownN) {
+        html += '<div class="actions" style="margin-top:8px"><button class="btn" id="more">Показать ещё (' + (current.length - shownN) + ')</button></div>';
       }
-
-      root.innerHTML = backBar() +
-        '<label>Привязать существующую карточку</label>' +
-        '<input type="text" id="flt" placeholder="Поиск по названию…" autocomplete="off">' +
-        '<div class="list" id="cand"></div>';
-      wireBack();
-      var flt = document.getElementById('flt');
-      flt.addEventListener('input', function () {
-        var q = flt.value.toLowerCase();
-        current = allCandidates.filter(function (c) { return (c.name || '').toLowerCase().indexOf(q) >= 0; });
-        shownN = PAGE;
-        paint();
+      if (!loadedFull) html += '<p class="small muted" style="margin-top:6px">Подгружаю остальные карточки…</p>';
+      document.getElementById('cand').innerHTML = html;
+      root.querySelectorAll('#cand .item').forEach(function (el) {
+        el.addEventListener('click', function () { Epic.setParent(t, el.getAttribute('data-id'), parentId).then(render).catch(function () { render(); }); });
       });
-      flt.focus();
+      var m = document.getElementById('more');
+      if (m) m.addEventListener('click', function () { shownN += PAGE; paint(); });
+      fit();
+    }
+    function applyFilter() {
+      var q = flt.value.toLowerCase();
+      current = allCandidates.filter(function (c) { return (c.name || '').toLowerCase().indexOf(q) >= 0; });
+      shownN = PAGE;
       paint();
+    }
+    function rebuild(cards) { allCandidates = cards.filter(function (c) { return !taken[c.id]; }); applyFilter(); }
+
+    flt.addEventListener('input', applyFilter);
+    flt.focus();
+
+    // Stage 1 (fast): lists + children + client-cached cards → instant, usable list.
+    Promise.all([t.lists('id', 'name'), Epic.getChildren(t, parentId), t.cards('id', 'name', 'idList')]).then(function (r) {
+      r[0].forEach(function (l) { listName[l.id] = l.name; });
+      r[1].forEach(function (id) { taken[id] = 1; }); taken[parentId] = 1;
+      rebuild(r[2] || []);
+      // Stage 2 (background): full board via REST → merge in, keeping the search box focus.
+      t.board('id').then(function (b) { return Epic.fetchBoardCards(t, b.id); }).then(function (full) {
+        loadedFull = true;
+        if (full && full.length) rebuild(full); else paint();
+      }).catch(function () { loadedFull = true; paint(); });
     });
   }
 
