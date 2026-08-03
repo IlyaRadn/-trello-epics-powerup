@@ -166,7 +166,7 @@
     fetchCardDetail: function (t, id) {
       return Epic.getToken(t).then(function (token) {
         if (!token || !Epic.APP_KEY) return null;
-        var qs = 'fields=name,url,due,dueComplete&members=true&member_fields=fullName,username,initials,avatarUrl&labels=true&key=' +
+        var qs = 'fields=name,url,due,dueComplete,labels&members=true&member_fields=fullName,username,initials,avatarUrl&key=' +
           encodeURIComponent(Epic.APP_KEY) + '&token=' + encodeURIComponent(token);
         return fetch('https://api.trello.com/1/cards/' + id + '?' + qs)
           .then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; });
