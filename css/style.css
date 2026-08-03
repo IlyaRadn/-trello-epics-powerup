@@ -86,6 +86,12 @@ select.move.done { background-color: var(--green-bg); color: var(--green); borde
 .av-add { width: 22px; height: 22px; border-radius: 50%; border: 1px dashed var(--line); color: var(--sub); display: inline-flex; align-items: center; justify-content: center; font-size: 14px; line-height: 1; }
 .avs-edit:hover .av-add { border-color: var(--blue); color: var(--blue); }
 .member .name { flex: 1; }
+/* link-existing filters row (column + sort) */
+.filters { display: flex; gap: 6px; margin: 6px 0; }
+.filters select { flex: 1; min-width: 0; padding: 6px 8px; }
+/* colored Trello labels (child view) */
+.label { font-size: 11px; height: 24px; padding: 0 8px; border-radius: 6px; display: inline-flex; align-items: center; white-space: nowrap; font-weight: 600; }
+.childmeta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
 .sub .meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .chips { display: flex; flex-direction: row; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
 .ctl { display: flex; }
@@ -103,7 +109,9 @@ select.move.done { background-color: var(--green-bg); color: var(--green); borde
 
 /* group sub-tasks by column (status) */
 .grp { margin-top: 8px; }
-.grp-h { font-size: 11px; font-weight: 700; color: var(--panel-muted); text-transform: uppercase; letter-spacing: .03em; margin: 8px 0 4px; }
+.grp-h { font-size: 11px; font-weight: 700; color: var(--panel-muted); text-transform: uppercase; letter-spacing: .03em; margin: 8px 0 4px; cursor: pointer; user-select: none; display: flex; align-items: center; gap: 5px; }
+.grp-h:hover { color: var(--blue); }
+.grp-caret { font-size: 9px; width: 9px; display: inline-block; }
 .grp-n { color: var(--panel-muted); font-weight: 600; }
 
 /* progress */

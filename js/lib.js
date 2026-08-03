@@ -155,8 +155,20 @@
     fetchBoardCards: function (t, boardId) {
       return Epic.getToken(t).then(function (token) {
         if (!token || !Epic.APP_KEY) return null;
-        var qs = 'filter=open&fields=name,idList&key=' + encodeURIComponent(Epic.APP_KEY) + '&token=' + encodeURIComponent(token);
+        var qs = 'filter=open&fields=name,idList,dateLastActivity&key=' + encodeURIComponent(Epic.APP_KEY) + '&token=' + encodeURIComponent(token);
         return fetch('https://api.trello.com/1/boards/' + boardId + '/cards?' + qs)
+          .then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; });
+      });
+    },
+
+    // Fetch one card's detail (due, assignees, labels) via REST — used to enrich
+    // the child view with the parent Subscription's date / members / labels.
+    fetchCardDetail: function (t, id) {
+      return Epic.getToken(t).then(function (token) {
+        if (!token || !Epic.APP_KEY) return null;
+        var qs = 'fields=name,url,due,dueComplete&members=true&member_fields=fullName,username,initials,avatarUrl&labels=true&key=' +
+          encodeURIComponent(Epic.APP_KEY) + '&token=' + encodeURIComponent(token);
+        return fetch('https://api.trello.com/1/cards/' + id + '?' + qs)
           .then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; });
       });
     },
