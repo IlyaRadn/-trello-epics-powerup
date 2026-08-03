@@ -61,6 +61,10 @@
     APP_NAME: 'Duck Epics',
 
     // ---------- token (our own OAuth flow, stored member-private) ----------
+    // Collapsed-group UI state, stored per member (personal preference, persists across sessions).
+    getCollapsed: function (t) { return t.get('member', 'private', 'sub:collapsed').then(function (v) { return v || {}; }).catch(function () { return {}; }); },
+    setCollapsed: function (t, obj) { return t.set('member', 'private', 'sub:collapsed', obj).catch(function () {}); },
+
     getToken: function (t) { return t.get('member', 'private', 'duckToken').catch(function () { return null; }); },
     setToken: function (t, token) { return t.set('member', 'private', 'duckToken', token); },
     clearToken: function (t) { return t.remove('member', 'private', 'duckToken'); },

@@ -110,9 +110,9 @@ select.move.done { background-color: var(--green-bg); color: var(--green); borde
 
 /* group sub-tasks by column (status) */
 .grp { margin-top: 8px; }
-.grp-h { font-size: 11px; font-weight: 700; color: var(--panel-muted); text-transform: uppercase; letter-spacing: .03em; margin: 8px 0 4px; cursor: pointer; user-select: none; display: flex; align-items: center; gap: 5px; }
-.grp-h:hover { color: var(--blue); }
-.grp-caret { font-size: 9px; width: 9px; display: inline-block; }
+.grp-h { font-size: 11px; font-weight: 700; color: var(--panel-muted); text-transform: uppercase; letter-spacing: .03em; margin: 8px 0 4px; cursor: pointer; user-select: none; display: flex; align-items: center; gap: 6px; padding: 3px 5px; border-radius: 5px; }
+.grp-h:hover { color: var(--blue); background: rgba(255, 255, 255, .55); }
+.grp-caret { font-size: 12px; line-height: 1; width: 12px; text-align: center; display: inline-flex; align-items: center; justify-content: center; color: var(--blue); }
 .grp-n { color: var(--panel-muted); font-weight: 600; }
 
 /* progress */

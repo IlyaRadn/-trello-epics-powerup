@@ -261,8 +261,9 @@
 
   // ---------- subscription (parent) ----------
   function renderParent(cardId) {
-    return Promise.all([Epic.getChildren(t, cardId), Epic.getIcon(t, cardId), t.lists('id', 'name'), Epic.getStatusLists(t)]).then(function (pre) {
+    return Promise.all([Epic.getChildren(t, cardId), Epic.getIcon(t, cardId), t.lists('id', 'name'), Epic.getStatusLists(t), Epic.getCollapsed(t)]).then(function (pre) {
       var childIds = pre[0], icon = pre[1], lists = pre[2], statusCfg = pre[3];
+      collapsedGroups = pre[4] || {};
       ALL_LISTS = lists;
       DONE_LIST_ID = Epic.findDoneListId(lists);
       // Status columns = configured subset, or (default) all lists except the «Подписка»/Subscription parent lists.
@@ -296,7 +297,7 @@
   // Collapsible group header (click to toggle). `key` is the list id (or 'archived').
   function grpHead(key, label, count, collapsed) {
     return '<div class="grp-h" data-key="' + Views.esc(String(key)) + '">' +
-      '<span class="grp-caret">' + (collapsed ? '▸' : '▾') + '</span>' +
+      '<span class="grp-caret">' + (collapsed ? '▶' : '▼') + '</span>' +
       Views.esc(label) + ' <span class="grp-n">' + count + '</span></div>';
   }
 
@@ -356,7 +357,9 @@
       h.addEventListener('click', function (e) {
         e.stopPropagation();
         var k = h.getAttribute('data-key');
-        collapsedGroups[k] = !collapsedGroups[k];
+        if (collapsedGroups[k]) delete collapsedGroups[k]; else collapsedGroups[k] = true;
+        lastSelfWrite = Date.now();
+        Epic.setCollapsed(t, collapsedGroups); // persist (member-private)
         paintParent(lastPaint.cardId, lastPaint.s, lastPaint.icon);
       });
     });
