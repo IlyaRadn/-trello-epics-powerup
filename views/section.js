@@ -24,6 +24,7 @@
   var DONE_LIST_ID = null; // id of the «Completed Tasks» list (for the ✓ toggle)
   var collapsedGroups = {}; // group key -> true when the user collapsed that column
   var LINKS = {};           // cardId -> custom link URL (board-shared)
+  var MEMBERS_MAP = {};     // id -> {avatarUrl,fullName,username,initials} from the members cache
   var lastSelfWrite = 0; // timestamp of our last optimistic REST write (move/due) — used
                          // to suppress Trello's t.render churn that would otherwise rebuild
                          // the DOM mid-interaction (e.g. close a just-opened date picker).
@@ -123,6 +124,12 @@
     var img = src ? '<img src="' + Views.esc(src) + '" onerror="this.remove()" alt="">' : '';
     return '<span class="av" title="' + name + '" style="background:hsl(' + hue(m.id) + ',55%,52%)">' + ini + img + '</span>';
   }
+  // Cache-first board members: use the warm map if we have it, else refresh (and cache).
+  function membersReady() {
+    if (Object.keys(MEMBERS_MAP).length) return Promise.resolve(MEMBERS_MAP);
+    return t.board('id').then(function (b) { return Epic.refreshMembers(t, b.id); }).then(function (map) { MEMBERS_MAP = map || {}; return MEMBERS_MAP; });
+  }
+
   function colSelect(it) {
     var opts = STATUS_LISTS.map(function (l) { return '<option value="' + l.id + '"' + (l.id === it.listId ? ' selected' : '') + '>' + Views.esc(l.name) + '</option>'; }).join('');
     if (it.listId && !STATUS_LISTS.some(function (l) { return l.id === it.listId; })) {
@@ -267,10 +274,16 @@
 
   // ---------- subscription (parent) ----------
   function renderParent(cardId) {
-    return Promise.all([Epic.getChildren(t, cardId), Epic.getIcon(t, cardId), t.lists('id', 'name'), Epic.getStatusLists(t), Epic.getCollapsed(t), Epic.getLinks(t)]).then(function (pre) {
+    return Promise.all([Epic.getChildren(t, cardId), Epic.getIcon(t, cardId), t.lists('id', 'name'), Epic.getStatusLists(t), Epic.getCollapsed(t), Epic.getLinks(t), Epic.getMembersCache(t)]).then(function (pre) {
       var childIds = pre[0], icon = pre[1], lists = pre[2], statusCfg = pre[3];
       collapsedGroups = pre[4] || {};
       LINKS = pre[5] || {};
+      var mcache = pre[6];
+      // Warm avatars from the cache so photos show on the FIRST paint (no REST wait).
+      if (mcache && mcache.map) {
+        MEMBERS_MAP = mcache.map;
+        Object.keys(mcache.map).forEach(function (id) { if (mcache.map[id].avatarUrl) MEMBER_AVATARS[id] = mcache.map[id].avatarUrl; });
+      }
       ALL_LISTS = lists;
       DONE_LIST_ID = Epic.findDoneListId(lists);
       // Status columns = configured subset, or (default) all lists except the «Подписка»/Subscription parent lists.
@@ -285,12 +298,14 @@
         return archP.then(function (arch) {
           return Epic.computeStats(t, cardId, { childIds: childIds, activeCards: active, lists: lists, archivedById: arch }).then(function (s) {
             return safePaint(cardId, s, icon).then(function () {
-              // Avatar photos need one REST call per iframe; when they arrive, just repaint
-              // the SAME stats (no refetch / recompute) so the initials become photos.
-              if (!Object.keys(MEMBER_AVATARS).length) {
-                t.board('id').then(function (b) { return Epic.fetchMembers(t, b.id); }).then(function (members) {
+              // Refresh the members cache via REST only when it's missing or stale (>30 min);
+              // otherwise avatars already came from the cache above — no per-open REST.
+              var stale = !mcache || !mcache.ts || (Date.now() - mcache.ts > 1800000);
+              if (stale) {
+                t.board('id').then(function (b) { return Epic.refreshMembers(t, b.id); }).then(function (map) {
                   var added = false;
-                  Object.keys(members).forEach(function (id) { if (members[id].avatarUrl) { MEMBER_AVATARS[id] = members[id].avatarUrl; added = true; } });
+                  MEMBERS_MAP = map;
+                  Object.keys(map).forEach(function (id) { if (map[id].avatarUrl && MEMBER_AVATARS[id] !== map[id].avatarUrl) { MEMBER_AVATARS[id] = map[id].avatarUrl; added = true; } });
                   if (added) safePaint(cardId, s, icon);
                 }).catch(function () {});
               }
@@ -486,7 +501,7 @@
     var changed = false;
     root.innerHTML = backBar() + '<p class="muted small">Loading members…</p>';
     document.getElementById('cx').addEventListener('click', function () { changed ? render() : backToList(cardId); });
-    t.board('id').then(function (b) { return Epic.fetchMembers(t, b.id); }).then(function (map) {
+    membersReady().then(function (map) {
       var members = Object.keys(map).map(function (id) { return map[id]; });
       members.sort(function (a, b2) { return (a.fullName || a.username || '').localeCompare(b2.fullName || b2.username || ''); });
       root.innerHTML = backBar() +
@@ -620,7 +635,7 @@
         fit();
       }
       if (isAuthed) {
-        Epic.fetchMembers(t, boardId).then(function (map) {
+        membersReady().then(function (map) {
           allMembers = Object.keys(map).map(function (id) { return map[id]; });
           allMembers.sort(function (a, b) { return (a.fullName || a.username || '').localeCompare(b.fullName || b.username || ''); });
           paintMem();

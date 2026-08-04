@@ -106,6 +106,17 @@
       });
     },
 
+    // Board members cache (board-shared pluginData) so avatars/photos load instantly
+    // on every card open instead of a REST call per iframe. Refreshed when stale.
+    getMembersCache: function (t) { return Epic._get(t, 'sub:members', null); },
+    refreshMembers: function (t, boardId) {
+      return Epic.fetchMembers(t, boardId).then(function (map) {
+        map = map || {};
+        if (Object.keys(map).length) return Epic._set(t, 'sub:members', { ts: Date.now(), map: map }).then(function () { return map; });
+        return map;
+      });
+    },
+
     // Fetch board members via REST as id->{avatarUrl,fullName,...} (t.cards('members')
     // omits avatar URLs, so we look them up here). Empty map if not authorized.
     fetchMembers: function (t, boardId) {
