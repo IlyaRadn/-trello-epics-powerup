@@ -87,12 +87,16 @@
         if (!token || !Epic.APP_KEY) throw new Error('auth');
         var qs = 'idList=' + encodeURIComponent(opts.idList) +
           '&name=' + encodeURIComponent(opts.name) +
+          (opts.due ? '&due=' + encodeURIComponent(opts.due) : '') +
+          (opts.idMembers && opts.idMembers.length ? '&idMembers=' + encodeURIComponent(opts.idMembers.join(',')) : '') +
           '&key=' + encodeURIComponent(Epic.APP_KEY) +
           '&token=' + encodeURIComponent(token);
         return fetch('https://api.trello.com/1/cards?' + qs, { method: 'POST' })
           .then(function (resp) { if (!resp.ok) throw new Error('rest ' + resp.status); return resp.json(); })
           .then(function (card) {
-            return Epic.setParent(t, card.id, opts.parentId).then(function () { return card.id; });
+            var after = Epic.setParent(t, card.id, opts.parentId);
+            if (opts.link) after = after.then(function () { return Epic.setLink(t, card.id, opts.link); });
+            return after.then(function () { return card.id; });
           });
       });
     },

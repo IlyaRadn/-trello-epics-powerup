@@ -574,8 +574,8 @@
 
   function showCreateForm(cardId) {
     busy = true;
-    Promise.all([t.card('idList'), t.lists('id', 'name'), authed()]).then(function (r) {
-      var cur = r[0], lists = r[1], isAuthed = r[2];
+    Promise.all([t.card('idList'), t.lists('id', 'name'), authed(), t.board('id')]).then(function (r) {
+      var cur = r[0], lists = r[1], isAuthed = r[2], boardId = r[3].id;
       var opts = lists.map(function (l) { return '<option value="' + l.id + '"' + (l.id === cur.idList ? ' selected' : '') + '>' + Views.esc(l.name) + '</option>'; }).join('');
       root.innerHTML = backBar() +
         (isAuthed ? '' :
@@ -583,6 +583,11 @@
           '<div class="actions" style="margin-bottom:8px"><button class="btn primary" id="auth">Authorize</button></div>') +
         '<label>New sub-task name</label><input type="text" id="nm" placeholder="SUB - ..." autocomplete="off">' +
         '<label>Column</label><select id="ls">' + opts + '</select>' +
+        '<label>Due date</label><input type="date" id="due">' +
+        '<label>Link</label><input type="text" id="lk" placeholder="https://…" autocomplete="off">' +
+        '<label>Assignees</label>' +
+        '<input type="text" id="memflt" placeholder="Search members…" autocomplete="off"' + (isAuthed ? '' : ' disabled') + '>' +
+        '<div class="list memlist" id="mem"></div>' +
         '<div class="actions"><button class="btn primary" id="cr" disabled>Create</button></div>' +
         '<p class="small muted" id="msg"></p>';
       wireBack();
@@ -591,10 +596,46 @@
       var nm = document.getElementById('nm'), cr = document.getElementById('cr');
       nm.addEventListener('input', function () { cr.disabled = !nm.value.trim() || !isAuthed; });
       if (isAuthed) nm.focus();
+
+      // Assignee picker (search + toggle list).
+      var selected = {}, allMembers = [], memflt = document.getElementById('memflt');
+      function paintMem() {
+        var q = memflt.value.toLowerCase();
+        var shown = allMembers.filter(function (m) { return ((m.fullName || '') + ' ' + (m.username || '')).toLowerCase().indexOf(q) >= 0; });
+        document.getElementById('mem').innerHTML = shown.map(function (m) {
+          return '<button class="item member' + (selected[m.id] ? ' selected' : '') + '" data-id="' + m.id + '">' +
+            avatarHtml(m) + '<span class="name">' + Views.esc(m.fullName || m.username || m.id) + '</span>' +
+            '<span class="pill done mchk"' + (selected[m.id] ? '' : ' style="visibility:hidden"') + '>✓</span></button>';
+        }).join('') || '<p class="muted small" style="padding:4px 2px">No members.</p>';
+        document.getElementById('mem').querySelectorAll('.member').forEach(function (el) {
+          el.addEventListener('click', function () {
+            var id = el.getAttribute('data-id');
+            if (selected[id]) delete selected[id]; else selected[id] = 1;
+            el.classList.toggle('selected', !!selected[id]);
+            var chk = el.querySelector('.mchk'); if (chk) chk.style.visibility = selected[id] ? 'visible' : 'hidden';
+          });
+        });
+        fit();
+      }
+      if (isAuthed) {
+        Epic.fetchMembers(t, boardId).then(function (map) {
+          allMembers = Object.keys(map).map(function (id) { return map[id]; });
+          allMembers.sort(function (a, b) { return (a.fullName || a.username || '').localeCompare(b.fullName || b.username || ''); });
+          paintMem();
+        });
+        memflt.addEventListener('input', paintMem);
+      }
+
       cr.addEventListener('click', function () {
         cr.disabled = true; document.getElementById('msg').textContent = 'Creating…';
-        Epic.createSubtask(t, { name: nm.value.trim(), idList: document.getElementById('ls').value, parentId: cardId })
-          .then(render)
+        Epic.createSubtask(t, {
+          name: nm.value.trim(),
+          idList: document.getElementById('ls').value,
+          parentId: cardId,
+          due: inputValToIso(document.getElementById('due').value, null),
+          link: normalizeUrl(document.getElementById('lk').value),
+          idMembers: Object.keys(selected),
+        }).then(render)
           .catch(function (e) { document.getElementById('msg').textContent = (e.message === 'auth') ? 'Authorize first.' : 'Error: ' + e.message; cr.disabled = false; });
       });
       fit();
