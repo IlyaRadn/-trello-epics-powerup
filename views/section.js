@@ -23,6 +23,7 @@
   var DRAG_ID = null;    // id of the sub-task currently being dragged
   var DONE_LIST_ID = null; // id of the «Completed Tasks» list (for the ✓ toggle)
   var collapsedGroups = {}; // group key -> true when the user collapsed that column
+  var LINKS = {};           // cardId -> custom link URL (board-shared)
   var lastSelfWrite = 0; // timestamp of our last optimistic REST write (move/due) — used
                          // to suppress Trello's t.render churn that would otherwise rebuild
                          // the DOM mid-interaction (e.g. close a just-opened date picker).
@@ -160,8 +161,13 @@
 
     var check = '<span class="check' + (it.done ? ' on' : '') + '" data-id="' + it.id + '" title="' + (it.done ? 'Mark as not done' : 'Mark as done') + '"></span>';
     var avsCell = '<span class="avs avs-edit" data-id="' + it.id + '" title="Assignee">' + (avs || '<span class="av-add">+</span>') + '</span>';
+    var link = LINKS[it.id] || '';
+    var linkBtns = link
+      ? '<button class="linkbtn has" data-openlink="' + Views.esc(link) + '" title="' + Views.esc(link) + '">🔗</button>' +
+        '<button class="linkbtn" data-editlink="' + it.id + '" title="Edit link">✎</button>'
+      : '<button class="linkbtn" data-editlink="' + it.id + '" title="Add link">🔗</button>';
     var inner =
-      '<div class="toprow">' + check + nameHtml + avsCell + '</div>' +
+      '<div class="toprow">' + check + nameHtml + linkBtns + avsCell + '</div>' +
       '<div class="meta"><span class="chips">' + chips + '</span></div>' +
       '<div class="ctl">' + colSelect(it) + '</div>';
     // A <div> (not <button>) so the inline <select> works; draggable for column moves.
@@ -261,9 +267,10 @@
 
   // ---------- subscription (parent) ----------
   function renderParent(cardId) {
-    return Promise.all([Epic.getChildren(t, cardId), Epic.getIcon(t, cardId), t.lists('id', 'name'), Epic.getStatusLists(t), Epic.getCollapsed(t)]).then(function (pre) {
+    return Promise.all([Epic.getChildren(t, cardId), Epic.getIcon(t, cardId), t.lists('id', 'name'), Epic.getStatusLists(t), Epic.getCollapsed(t), Epic.getLinks(t)]).then(function (pre) {
       var childIds = pre[0], icon = pre[1], lists = pre[2], statusCfg = pre[3];
       collapsedGroups = pre[4] || {};
+      LINKS = pre[5] || {};
       ALL_LISTS = lists;
       DONE_LIST_ID = Epic.findDoneListId(lists);
       // Status columns = configured subset, or (default) all lists except the «Подписка»/Subscription parent lists.
@@ -400,6 +407,15 @@
       el.addEventListener('mousedown', function (e) { e.stopPropagation(); });
       el.addEventListener('click', function (e) { e.stopPropagation(); showMemberPicker(el.getAttribute('data-id')); });
     });
+    // Link button: open the saved URL, or open the editor.
+    root.querySelectorAll('[data-openlink]').forEach(function (b) {
+      b.addEventListener('mousedown', function (e) { e.stopPropagation(); });
+      b.addEventListener('click', function (e) { e.stopPropagation(); var u = b.getAttribute('data-openlink'); if (u) window.open(u, '_blank'); });
+    });
+    root.querySelectorAll('[data-editlink]').forEach(function (b) {
+      b.addEventListener('mousedown', function (e) { e.stopPropagation(); });
+      b.addEventListener('click', function (e) { e.stopPropagation(); showLinkEditor(b.getAttribute('data-editlink')); });
+    });
     // Inline due-date editing: the transparent overlay input opens the native picker
     // on a direct click; on change we save optimistically.
     root.querySelectorAll('.due-ovl').forEach(function (inp) {
@@ -517,6 +533,43 @@
     busy = false;
     if (lastPaint && lastPaint.s) { paintParent(lastPaint.cardId, lastPaint.s, lastPaint.icon); fit(); }
     else render();
+  }
+
+  function normalizeUrl(u) { u = (u || '').trim(); if (!u) return ''; if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(u)) u = 'https://' + u; return u; }
+
+  // Inline editor for a sub-task's custom link (add / edit / open / delete).
+  function showLinkEditor(cardId) {
+    busy = true;
+    var cur = LINKS[cardId] || '';
+    root.innerHTML = backBar() +
+      '<label>Link</label>' +
+      '<input type="text" id="lnk" placeholder="https://…" autocomplete="off">' +
+      '<div class="actions" style="margin-top:10px">' +
+      '<button class="btn primary" id="lopen">Open ↗</button>' +
+      '<button class="btn" id="lsave">Save</button>' +
+      (cur ? '<button class="btn danger" id="ldel">Delete</button>' : '') +
+      '</div><p class="small muted" id="lmsg"></p>';
+    wireBack();
+    var inp = document.getElementById('lnk');
+    inp.value = cur; inp.focus();
+    function saveAnd(url, done) {
+      LINKS[cardId] = url; if (!url) delete LINKS[cardId];
+      lastSelfWrite = Date.now();
+      Epic.setLink(t, cardId, url).then(done).catch(done);
+    }
+    document.getElementById('lopen').addEventListener('click', function () {
+      var v = normalizeUrl(inp.value);
+      if (!v) { document.getElementById('lmsg').textContent = 'Enter a URL first.'; return; }
+      saveAnd(v, function () { window.open(v, '_blank'); backToList(cardId); });
+    });
+    document.getElementById('lsave').addEventListener('click', function () {
+      var v = normalizeUrl(inp.value);
+      saveAnd(v, function () { backToList(cardId); });
+    });
+    var del = document.getElementById('ldel');
+    if (del) del.addEventListener('click', function () { saveAnd('', function () { backToList(cardId); }); });
+    inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') document.getElementById('lsave').click(); });
+    fit();
   }
 
   function showCreateForm(cardId) {

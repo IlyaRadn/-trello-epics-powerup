@@ -61,6 +61,16 @@
     APP_NAME: 'Duck Epics',
 
     // ---------- token (our own OAuth flow, stored member-private) ----------
+    // Per-sub-task custom link (all in one board-shared map for a single read).
+    getLinks: function (t) { return Epic._get(t, 'sub:links', {}); },
+    setLink: function (t, cardId, url) {
+      return Epic._get(t, 'sub:links', {}).then(function (m) {
+        m = m || {};
+        if (url) m[cardId] = url; else delete m[cardId];
+        return Epic._set(t, 'sub:links', m);
+      });
+    },
+
     // Collapsed-group UI state, stored per member (personal preference, persists across sessions).
     getCollapsed: function (t) { return t.get('member', 'private', 'sub:collapsed').then(function (v) { return v || {}; }).catch(function () { return {}; }); },
     setCollapsed: function (t, obj) { return t.set('member', 'private', 'sub:collapsed', obj).catch(function () {}); },
