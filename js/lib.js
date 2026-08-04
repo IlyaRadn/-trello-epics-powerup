@@ -351,7 +351,7 @@
     computeStats: function (t, parentId, opts) {
       opts = opts || {};
       return Promise.all([
-        Epic.getChildren(t, parentId),
+        opts.childIds ? Promise.resolve(opts.childIds) : Epic.getChildren(t, parentId),
         opts.activeCards ? Promise.resolve(opts.activeCards) : t.cards('id', 'name', 'idList', 'closed'),
         opts.lists ? Promise.resolve(opts.lists) : t.lists('id', 'name'),
       ]).then(function (res) {

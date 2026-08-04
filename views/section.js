@@ -268,25 +268,25 @@
       DONE_LIST_ID = Epic.findDoneListId(lists);
       // Status columns = configured subset, or (default) all lists except the «Подписка»/Subscription parent lists.
       STATUS_LISTS = lists.filter(function (l) { return statusCfg ? statusCfg.indexOf(l.id) >= 0 : !/подписк/i.test(l.name); });
-      // Stage 1 — minimal fields (fast): show the list immediately.
-      return t.cards('id', 'name', 'idList', 'closed', 'url').then(function (active) {
+      // ONE rich cards fetch (client-cached, fast) — no second pass. Pass childIds so
+      // computeStats doesn't re-read pluginData.
+      return t.cards('id', 'name', 'idList', 'closed', 'url', 'due', 'dueComplete', 'badges', 'members').then(function (active) {
         var have = {}; active.forEach(function (c) { have[c.id] = 1; });
         var missingIds = childIds.filter(function (id) { return !have[id]; });
         // Fetch ONLY the archived sub-tasks by id (fast), not the whole board archive.
         var archP = missingIds.length ? Epic.fetchArchivedByIds(t, missingIds) : Promise.resolve({});
         return archP.then(function (arch) {
-          return Epic.computeStats(t, cardId, { activeCards: active, lists: lists, archivedById: arch }).then(function (s) {
+          return Epic.computeStats(t, cardId, { childIds: childIds, activeCards: active, lists: lists, archivedById: arch }).then(function (s) {
             return safePaint(cardId, s, icon).then(function () {
-              // Stage 2 — enrich with due/checklist/members + avatar URLs (REST) in the background.
-              Promise.all([
-                t.cards('id', 'name', 'idList', 'closed', 'url', 'due', 'dueComplete', 'badges', 'members'),
-                // Fetch board members (avatar URLs) once per iframe, then reuse.
-                Object.keys(MEMBER_AVATARS).length ? Promise.resolve({}) : t.board('id').then(function (b) { return Epic.fetchMembers(t, b.id); }),
-              ]).then(function (rr) {
-                var rich = rr[0], members = rr[1];
-                Object.keys(members).forEach(function (id) { if (members[id].avatarUrl) MEMBER_AVATARS[id] = members[id].avatarUrl; });
-                return Epic.computeStats(t, cardId, { activeCards: rich, lists: lists, archivedById: arch });
-              }).then(function (s2) { return safePaint(cardId, s2, icon); }).catch(function () {});
+              // Avatar photos need one REST call per iframe; when they arrive, just repaint
+              // the SAME stats (no refetch / recompute) so the initials become photos.
+              if (!Object.keys(MEMBER_AVATARS).length) {
+                t.board('id').then(function (b) { return Epic.fetchMembers(t, b.id); }).then(function (members) {
+                  var added = false;
+                  Object.keys(members).forEach(function (id) { if (members[id].avatarUrl) { MEMBER_AVATARS[id] = members[id].avatarUrl; added = true; } });
+                  if (added) safePaint(cardId, s, icon);
+                }).catch(function () {});
+              }
             });
           });
         });
@@ -674,12 +674,15 @@
     fit();
   }
 
+  var renderTimer = null;
   t.render(function () {
     if (busy) return;
     // Skip the re-render triggered by our own optimistic write (move/due): the UI is
     // already updated, and rebuilding now would close an open date picker / feel slow.
     if (Date.now() - lastSelfWrite < 2500) return;
-    render();
+    // Debounce bursts of board changes into a single re-render.
+    clearTimeout(renderTimer);
+    renderTimer = setTimeout(function () { if (!busy) render(); }, 120);
   });
   render();
 })();
