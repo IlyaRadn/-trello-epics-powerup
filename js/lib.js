@@ -88,6 +88,7 @@
         var qs = 'idList=' + encodeURIComponent(opts.idList) +
           '&name=' + encodeURIComponent(opts.name) +
           (opts.due ? '&due=' + encodeURIComponent(opts.due) : '') +
+          (opts.link ? '&desc=' + encodeURIComponent(opts.link) : '') +
           (opts.idMembers && opts.idMembers.length ? '&idMembers=' + encodeURIComponent(opts.idMembers.join(',')) : '') +
           '&key=' + encodeURIComponent(Epic.APP_KEY) +
           '&token=' + encodeURIComponent(token);
