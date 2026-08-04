@@ -96,7 +96,11 @@
           .then(function (resp) { if (!resp.ok) throw new Error('rest ' + resp.status); return resp.json(); })
           .then(function (card) {
             var after = Epic.setParent(t, card.id, opts.parentId);
-            if (opts.link) after = after.then(function () { return Epic.setLink(t, card.id, opts.link); });
+            if (opts.link) {
+              after = after
+                .then(function () { return Epic.setLink(t, card.id, opts.link); })
+                .then(function () { return Epic.linkToDesc(t, card.id, opts.link); });
+            }
             return after.then(function () { return card.id; });
           });
       });
@@ -142,6 +146,24 @@
         var qs = 'due=' + encodeURIComponent(dueISO || '') + '&key=' + encodeURIComponent(Epic.APP_KEY) + '&token=' + encodeURIComponent(token);
         return fetch('https://api.trello.com/1/cards/' + id + '?' + qs, { method: 'PUT' })
           .then(function (r) { if (!r.ok) throw new Error('rest ' + r.status); return true; });
+      });
+    },
+
+    // Append a URL to a card's description (Trello desc) if not already present —
+    // so the link is visible when you open the actual sub-task card. Non-clobbering.
+    linkToDesc: function (t, cardId, url) {
+      if (!url) return Promise.resolve();
+      return Epic.getToken(t).then(function (token) {
+        if (!token || !Epic.APP_KEY) return;
+        var base = 'key=' + encodeURIComponent(Epic.APP_KEY) + '&token=' + encodeURIComponent(token);
+        return fetch('https://api.trello.com/1/cards/' + cardId + '?fields=desc&' + base)
+          .then(function (r) { return r.ok ? r.json() : {}; })
+          .then(function (c) {
+            var desc = (c && c.desc) || '';
+            if (desc.indexOf(url) >= 0) return; // already there
+            var next = desc ? (desc + '\n\n' + url) : url;
+            return fetch('https://api.trello.com/1/cards/' + cardId + '?desc=' + encodeURIComponent(next) + '&' + base, { method: 'PUT' });
+          }).catch(function () {});
       });
     },
 

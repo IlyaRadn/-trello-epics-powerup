@@ -555,7 +555,9 @@
     function saveAnd(url, done) {
       LINKS[cardId] = url; if (!url) delete LINKS[cardId];
       lastSelfWrite = Date.now();
-      Epic.setLink(t, cardId, url).then(done).catch(done);
+      Epic.setLink(t, cardId, url)
+        .then(function () { return url ? Epic.linkToDesc(t, cardId, url) : null; })
+        .then(done).catch(done);
     }
     document.getElementById('lopen').addEventListener('click', function () {
       var v = normalizeUrl(inp.value);
