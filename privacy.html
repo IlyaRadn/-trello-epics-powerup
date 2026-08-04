@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Duck Epics — Privacy Policy</title>
+  <style>
+    body { font: 16px/1.6 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #172b4d; max-width: 760px; margin: 40px auto; padding: 0 20px; }
+    h1 { font-size: 28px; } h2 { font-size: 20px; margin-top: 32px; }
+    code { background: #f4f5f7; padding: 1px 5px; border-radius: 4px; }
+    a { color: #0052cc; }
+    .muted { color: #5e6c84; }
+  </style>
+</head>
+<body>
+  <h1>Duck Epics — Privacy Policy</h1>
+  <p class="muted">Last updated: 2026-08-04</p>
+
+  <p>Duck Epics ("the Power-Up") is a Trello Power-Up that adds a Subscription → Sub-task
+  hierarchy to Trello boards. This policy explains what data it uses and how it is stored.</p>
+
+  <h2>What data we process</h2>
+  <ul>
+    <li><strong>Board relationship data.</strong> The Power-Up stores parent/child links between
+    cards, a Subscription icon, per-sub-task links, and UI preferences. This is saved using
+    Trello's own <code>pluginData</code> storage, attached to your board and to your Trello member
+    profile — it never leaves Trello's infrastructure.</li>
+    <li><strong>Trello authorization token.</strong> To create cards, move cards, set due dates,
+    assign members and read archived cards, the Power-Up asks you to authorize it. The resulting
+    token is stored <em>member-private</em> inside Trello and is used only to call the Trello REST
+    API on your behalf. It is never sent to us or any third party.</li>
+    <li><strong>Card content shown in the UI.</strong> Card names, lists, due dates, checklists,
+    labels and member avatars are read from Trello to display the Power-Up interface. They are
+    processed in your browser and are not stored by us.</li>
+  </ul>
+
+  <h2>Where data is stored</h2>
+  <p>The Power-Up has <strong>no server or database of its own.</strong> All data lives inside
+  Trello (board/member <code>pluginData</code>). The Power-Up's code is static files served over
+  HTTPS from GitHub Pages; those requests deliver code to your browser and do not transmit your
+  Trello data to us.</p>
+
+  <h2>What we do NOT do</h2>
+  <ul>
+    <li>We do not run analytics or tracking.</li>
+    <li>We do not set cookies.</li>
+    <li>We do not sell, share or transmit your data to third parties.</li>
+    <li>We do not store your Trello token or card content on our side.</li>
+  </ul>
+
+  <h2>Data retention & deletion</h2>
+  <p>Because data is stored in Trello's <code>pluginData</code>, removing the Power-Up from a board,
+  or clearing its authorization in your Trello account settings, removes its access. Relationship
+  data can be cleared with the "Unmark" action or by removing the Power-Up.</p>
+
+  <h2>Third-party services</h2>
+  <p>The Power-Up uses the <a href="https://developer.atlassian.com/cloud/trello/">Trello REST API</a>
+  (Atlassian) and is hosted on GitHub Pages. Your use of Trello is also governed by Atlassian's
+  privacy policy.</p>
+
+  <h2>Contact</h2>
+  <p>Questions about this policy: <a href="mailto:hello@duck.design">hello@duck.design</a>.</p>
+
+  <p class="muted"><em>Draft prepared for review — please have it checked before publishing.</em></p>
+</body>
+</html>
