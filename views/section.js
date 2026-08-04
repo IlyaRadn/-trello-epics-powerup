@@ -367,7 +367,8 @@
       '<span class="small muted">' + s.done + '/' + s.total + ' done</span></div>' +
       '<div class="toolbar"><button class="iconbtn" id="ic" title="Icon">' + icon + '</button>' +
       '<button class="btn primary" id="new">+ Sub-task</button>' +
-      '<button class="btn" id="link">🔗 Link</button>' +
+      '<button class="btn" id="attach">+ Existing</button>' +
+      '<button class="btn' + (LINKS[cardId] ? ' has-link' : '') + '" id="link" title="' + (LINKS[cardId] ? Views.esc(LINKS[cardId]) : 'Add a link (e.g. client site)') + '">🔗 Link</button>' +
       '<button class="btn" id="un">Unmark</button>' +
       '<button class="iconbtn" id="cols" title="Configure columns">⚙</button></div>' + body;
 
@@ -399,7 +400,8 @@
     });
     document.getElementById('ic').addEventListener('click', function () { showIconPicker(cardId); });
     document.getElementById('new').addEventListener('click', function () { showCreateForm(cardId); });
-    document.getElementById('link').addEventListener('click', function () { showLinkExisting(cardId); });
+    document.getElementById('attach').addEventListener('click', function () { showLinkExisting(cardId); });
+    document.getElementById('link').addEventListener('click', function () { showLinkEditor(cardId); });
     document.getElementById('un').addEventListener('click', function () { Epic.unmakeSubscription(t, cardId).then(render); });
     document.getElementById('cols').addEventListener('click', function () { showColumnsConfig(cardId); });
     var tg = document.getElementById('toggleList');
