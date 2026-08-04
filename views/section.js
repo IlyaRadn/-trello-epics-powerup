@@ -661,12 +661,13 @@
 
   function showLinkExisting(parentId) {
     busy = true;
-    var PAGE = 10, shownN = PAGE;
+    var PAGE = 10, shownN = PAGE, added = 0;
     var listName = {}, taken = {}, allCandidates = [], current = [], loadedFull = false;
 
     // Panel shell is painted immediately; cards fill in without blocking.
     root.innerHTML = backBar() +
-      '<label>Link an existing card</label>' +
+      '<label>Link existing cards</label>' +
+      '<p class="small muted" style="margin:-2px 0 6px">Click a card to add it as a sub-task. Keep adding, then ← Back.</p>' +
       '<input type="text" id="flt" placeholder="Search by name…" autocomplete="off">' +
       '<div class="filters">' +
       '<select id="colf"><option value="">All columns</option></select>' +
@@ -676,6 +677,7 @@
       '<option value="old">Oldest first</option>' +
       '<option value="name">Alphabetical</option>' +
       '</select></div>' +
+      '<p class="small" id="lnkmsg" style="color:var(--green);min-height:16px;margin:2px 0"></p>' +
       '<div class="list" id="cand"><p class="muted small">Loading cards…</p></div>';
     wireBack();
     var flt = document.getElementById('flt');
@@ -692,7 +694,18 @@
       if (!loadedFull) html += '<p class="small muted" style="margin-top:6px">Loading the rest of the cards…</p>';
       document.getElementById('cand').innerHTML = html;
       root.querySelectorAll('#cand .item').forEach(function (el) {
-        el.addEventListener('click', function () { Epic.setParent(t, el.getAttribute('data-id'), parentId).then(render).catch(function () { render(); }); });
+        el.addEventListener('click', function () {
+          var id = el.getAttribute('data-id');
+          el.disabled = true; el.style.opacity = '.5';
+          lastSelfWrite = Date.now(); // stay in the panel (busy=true already guards t.render)
+          Epic.setParent(t, id, parentId).then(function () {
+            added++;
+            allCandidates = allCandidates.filter(function (c) { return c.id !== id; });
+            current = current.filter(function (c) { return c.id !== id; });
+            var msg = document.getElementById('lnkmsg'); if (msg) msg.textContent = '✓ Added ' + added + ' — back when done';
+            paint();
+          }).catch(function () { el.disabled = false; el.style.opacity = ''; });
+        });
       });
       var m = document.getElementById('more');
       if (m) m.addEventListener('click', function () { shownN += PAGE; paint(); });
