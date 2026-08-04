@@ -109,10 +109,14 @@
     // Board members cache (board-shared pluginData) so avatars/photos load instantly
     // on every card open instead of a REST call per iframe. Refreshed when stale.
     getMembersCache: function (t) { return Epic._get(t, 'sub:members', null); },
+    // Cache ONLY avatar URLs (id->url) — small, well under the pluginData size limit.
+    // Returns the full member map for the caller; caching is best-effort/non-blocking.
     refreshMembers: function (t, boardId) {
       return Epic.fetchMembers(t, boardId).then(function (map) {
         map = map || {};
-        if (Object.keys(map).length) return Epic._set(t, 'sub:members', { ts: Date.now(), map: map }).then(function () { return map; });
+        var avatars = {};
+        Object.keys(map).forEach(function (id) { if (map[id].avatarUrl) avatars[id] = map[id].avatarUrl; });
+        if (Object.keys(avatars).length) Epic._set(t, 'sub:members', { ts: Date.now(), avatars: avatars });
         return map;
       });
     },

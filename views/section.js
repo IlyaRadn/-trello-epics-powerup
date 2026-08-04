@@ -24,7 +24,6 @@
   var DONE_LIST_ID = null; // id of the «Completed Tasks» list (for the ✓ toggle)
   var collapsedGroups = {}; // group key -> true when the user collapsed that column
   var LINKS = {};           // cardId -> custom link URL (board-shared)
-  var MEMBERS_MAP = {};     // id -> {avatarUrl,fullName,username,initials} from the members cache
   var lastSelfWrite = 0; // timestamp of our last optimistic REST write (move/due) — used
                          // to suppress Trello's t.render churn that would otherwise rebuild
                          // the DOM mid-interaction (e.g. close a just-opened date picker).
@@ -124,10 +123,10 @@
     var img = src ? '<img src="' + Views.esc(src) + '" onerror="this.remove()" alt="">' : '';
     return '<span class="av" title="' + name + '" style="background:hsl(' + hue(m.id) + ',55%,52%)">' + ini + img + '</span>';
   }
-  // Cache-first board members: use the warm map if we have it, else refresh (and cache).
+  // Full board members (names + avatars) for the picker / create form — always fresh
+  // (reliable). Row avatars use the small avatar cache separately.
   function membersReady() {
-    if (Object.keys(MEMBERS_MAP).length) return Promise.resolve(MEMBERS_MAP);
-    return t.board('id').then(function (b) { return Epic.refreshMembers(t, b.id); }).then(function (map) { MEMBERS_MAP = map || {}; return MEMBERS_MAP; });
+    return t.board('id').then(function (b) { return Epic.fetchMembers(t, b.id); });
   }
 
   function colSelect(it) {
@@ -279,10 +278,9 @@
       collapsedGroups = pre[4] || {};
       LINKS = pre[5] || {};
       var mcache = pre[6];
-      // Warm avatars from the cache so photos show on the FIRST paint (no REST wait).
-      if (mcache && mcache.map) {
-        MEMBERS_MAP = mcache.map;
-        Object.keys(mcache.map).forEach(function (id) { if (mcache.map[id].avatarUrl) MEMBER_AVATARS[id] = mcache.map[id].avatarUrl; });
+      // Warm avatars from the small cache so photos show on the FIRST paint (no REST wait).
+      if (mcache && mcache.avatars) {
+        Object.keys(mcache.avatars).forEach(function (id) { MEMBER_AVATARS[id] = mcache.avatars[id]; });
       }
       ALL_LISTS = lists;
       DONE_LIST_ID = Epic.findDoneListId(lists);
@@ -304,7 +302,6 @@
               if (stale) {
                 t.board('id').then(function (b) { return Epic.refreshMembers(t, b.id); }).then(function (map) {
                   var added = false;
-                  MEMBERS_MAP = map;
                   Object.keys(map).forEach(function (id) { if (map[id].avatarUrl && MEMBER_AVATARS[id] !== map[id].avatarUrl) { MEMBER_AVATARS[id] = map[id].avatarUrl; added = true; } });
                   if (added) safePaint(cardId, s, icon);
                 }).catch(function () {});
