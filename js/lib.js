@@ -279,24 +279,50 @@
     },
 
     makeSubscription: function (t, cardId, icon) {
-      return Epic.getMeta(t, cardId).then(function (m) {
-        m.role = 'subscription';
-        if (!m.icon) m.icon = icon || Epic.autoIcon(cardId);
-        return Epic._set(t, key('meta', cardId), m);
-      }).then(function () { return Epic._indexAdd(t, cardId); });
+      // If this card was un-marked before, restore its old sub-tasks from the backup
+      // (only children still free — not ones re-assigned to another Subscription meanwhile).
+      return Epic._get(t, key('backup', cardId), null).then(function (backup) {
+        var restore = Promise.resolve();
+        if (backup && backup.children && backup.children.length) {
+          var toRestore = [], chain = Promise.resolve();
+          backup.children.forEach(function (cid) {
+            chain = chain.then(function () {
+              return Epic.getParent(t, cid).then(function (p) {
+                if (!p) { toRestore.push(cid); return Epic._set(t, key('parent', cid), cardId); }
+              });
+            });
+          });
+          restore = chain
+            .then(function () { return Epic._set(t, key('children', cardId), toRestore); })
+            .then(function () { return Epic._remove(t, key('backup', cardId)); });
+        } else if (backup) {
+          restore = Epic._remove(t, key('backup', cardId));
+        }
+        return restore.then(function () {
+          return Epic.getMeta(t, cardId).then(function (m) {
+            m.role = 'subscription';
+            if (!m.icon) m.icon = (backup && backup.meta && backup.meta.icon) || icon || Epic.autoIcon(cardId);
+            return Epic._set(t, key('meta', cardId), m);
+          });
+        }).then(function () { return Epic._indexAdd(t, cardId); });
+      });
     },
 
     unmakeSubscription: function (t, cardId) {
-      // Drop the role but keep any existing links intact; also detach children.
-      return Epic.getChildren(t, cardId).then(function (kids) {
-        var chain = Promise.resolve();
-        kids.forEach(function (cid) {
-          chain = chain.then(function () { return Epic._remove(t, key('parent', cid)); });
+      // Drop the role + detach children, but BACK UP the relationships so a later
+      // "Make Subscription" can restore the same sub-tasks.
+      return Promise.all([Epic.getChildren(t, cardId), Epic.getMeta(t, cardId)]).then(function (r) {
+        var kids = r[0] || [], meta = r[1] || {};
+        return Epic._set(t, key('backup', cardId), { children: kids, meta: meta }).then(function () {
+          var chain = Promise.resolve();
+          kids.forEach(function (cid) {
+            chain = chain.then(function () { return Epic._remove(t, key('parent', cid)); });
+          });
+          return chain
+            .then(function () { return Epic._remove(t, key('children', cardId)); })
+            .then(function () { return Epic._remove(t, key('meta', cardId)); })
+            .then(function () { return Epic._indexRemove(t, cardId); });
         });
-        return chain
-          .then(function () { return Epic._remove(t, key('children', cardId)); })
-          .then(function () { return Epic._remove(t, key('meta', cardId)); })
-          .then(function () { return Epic._indexRemove(t, cardId); });
       });
     },
 
