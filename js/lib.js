@@ -317,9 +317,9 @@
           return Epic.getMeta(t, cardId).then(function (m) {
             m.role = 'subscription';
             if (!m.icon) m.icon = (backup && backup.meta && backup.meta.icon) || icon || Epic.autoIcon(cardId);
-            return Epic._set(t, key('meta', cardId), m);
+            return Epic._set(t, key('meta', cardId), m); // ESSENTIAL — this makes the card a Subscription
           });
-        }).then(function () { return Epic._indexAdd(t, cardId); });
+        }).then(function () { return Epic._indexAdd(t, cardId).catch(function () {}); }); // index is secondary — never block
       });
     },
 
@@ -342,17 +342,41 @@
     },
 
     // ---------- subscription index (for listing all epics) ----------
-    listSubscriptions: function (t) { return Epic._get(t, 'sub:index', []); },
+    // The subscription index is SHARDED too (`sub:index`, `sub:index:1` …) so a board
+    // with many subscriptions never hits the 8192-char per-key limit.
+    _idxKey: function (i) { return i ? 'sub:index:' + i : 'sub:index'; },
+    listSubscriptions: function (t) {
+      var reads = [];
+      for (var i = 0; i < 6; i++) reads.push(Epic._get(t, Epic._idxKey(i), []));
+      return Promise.all(reads).then(function (parts) {
+        var all = [], seen = {};
+        parts.forEach(function (arr) { (arr || []).forEach(function (id) { if (!seen[id]) { seen[id] = 1; all.push(id); } }); });
+        return all;
+      });
+    },
     _indexAdd: function (t, cardId) {
-      return Epic.listSubscriptions(t).then(function (arr) {
-        if (arr.indexOf(cardId) === -1) arr.push(cardId);
-        return Epic._set(t, 'sub:index', arr);
+      var reads = [];
+      for (var i = 0; i < 6; i++) reads.push(Epic._get(t, Epic._idxKey(i), []));
+      return Promise.all(reads).then(function (parts) {
+        for (var j = 0; j < parts.length; j++) if ((parts[j] || []).indexOf(cardId) >= 0) return;
+        for (var i = 0; i < 6; i++) {
+          var arr = (parts[i] || []).concat([cardId]);
+          if (JSON.stringify(arr).length < 6000) return Epic._set(t, Epic._idxKey(i), arr);
+        }
+        return Epic._set(t, Epic._idxKey(5), (parts[5] || []).concat([cardId]));
       });
     },
     _indexRemove: function (t, cardId) {
-      return Epic.listSubscriptions(t).then(function (arr) {
-        return Epic._set(t, 'sub:index', arr.filter(function (x) { return x !== cardId; }));
-      });
+      var chain = Promise.resolve();
+      var mk = function (i) { return function () {
+        return Epic._get(t, Epic._idxKey(i), []).then(function (arr) {
+          arr = arr || [];
+          if (arr.indexOf(cardId) < 0) return;
+          return Epic._set(t, Epic._idxKey(i), arr.filter(function (x) { return x !== cardId; }));
+        });
+      }; };
+      for (var i = 0; i < 6; i++) chain = chain.then(mk(i));
+      return chain;
     },
 
     getIcon: function (t, cardId) {
