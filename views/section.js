@@ -10,6 +10,7 @@
  */
 (function () {
   var t = TrelloPowerUp.iframe({ appKey: Epic.APP_KEY, appName: Epic.APP_NAME });
+  var VERSION = 'v61'; // shown in the unlinked view to confirm which connector version is loaded
   var root;
   var busy = false;
   var LIMIT = 30;
@@ -248,8 +249,14 @@
       '<p class="muted small">This card is not linked.</p>' +
       '<div class="actions">' +
       '<button class="btn primary" id="mk">Make Subscription</button>' +
-      '<button class="btn" id="at">Attach to Subscription</button></div>';
-    document.getElementById('mk').addEventListener('click', function () { Epic.makeSubscription(t, cardId).then(render); });
+      '<button class="btn" id="at">Attach to Subscription</button></div>' +
+      '<p class="small muted" id="mkmsg" style="margin-top:6px">' + VERSION + '</p>';
+    var mk = document.getElementById('mk');
+    mk.addEventListener('click', function () {
+      mk.disabled = true; document.getElementById('mkmsg').textContent = 'Working… (' + VERSION + ')';
+      Epic.makeSubscription(t, cardId).then(render)
+        .catch(function (e) { mk.disabled = false; document.getElementById('mkmsg').textContent = 'Error: ' + (e && e.message || e) + ' (' + VERSION + ')'; });
+    });
     document.getElementById('at').addEventListener('click', function () { showAttach(cardId); });
     debugFooter();
   }
