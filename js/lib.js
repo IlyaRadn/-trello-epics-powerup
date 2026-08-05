@@ -409,6 +409,43 @@
       return chain;
     },
 
+    // Resolve missing child ids in ONE REST pass: returns which are archived (still exist)
+    // and which are confirmed DELETED (HTTP 404). Network errors are treated as unknown
+    // (neither) so we never mistake a transient failure for a deletion.
+    resolveMissing: function (t, ids) {
+      return Epic.getToken(t).then(function (token) {
+        if (!token || !Epic.APP_KEY || !ids || !ids.length) return { archived: {}, dead: [] };
+        return Promise.all(ids.map(function (id) {
+          var qs = 'fields=name,idList,closed,url&key=' + encodeURIComponent(Epic.APP_KEY) + '&token=' + encodeURIComponent(token);
+          return fetch('https://api.trello.com/1/cards/' + id + '?' + qs).then(function (r) {
+            if (r.status === 404) return { id: id, dead: true };
+            return r.ok ? r.json().then(function (c) { return { id: id, card: c }; }) : { id: id };
+          }).catch(function () { return { id: id }; });
+        })).then(function (arr) {
+          var archived = {}, dead = [];
+          arr.forEach(function (x) {
+            if (x.dead) dead.push(x.id);
+            else if (x.card) archived[x.card.id] = { id: x.card.id, name: x.card.name, idList: x.card.idList, closed: !!x.card.closed, url: x.card.url };
+          });
+          return { archived: archived, dead: dead };
+        });
+      });
+    },
+
+    // Drop dead sub-task ids (cards deleted in Trello) from a subscription's children list
+    // and clear their legacy parent records. Keeps stored data small over time so no
+    // section ever bloats back toward the limit. Caller must vet `orphanIds` safely.
+    pruneChildren: function (t, parentId, orphanIds) {
+      if (!orphanIds || !orphanIds.length) return Promise.resolve();
+      var set = {}; orphanIds.forEach(function (id) { set[id] = 1; });
+      return Epic.getChildren(t, parentId).then(function (arr) {
+        var kept = arr.filter(function (id) { return !set[id]; });
+        var chain = (kept.length !== arr.length) ? Epic._cset(t, parentId, 'children', kept) : Promise.resolve();
+        orphanIds.forEach(function (id) { chain = chain.then(function () { return Epic._remove(t, key('parent', id)).catch(function () {}); }); });
+        return chain;
+      });
+    },
+
     getIcon: function (t, cardId) {
       return Epic.getMeta(t, cardId).then(function (m) { return m.icon || '🗂️'; });
     },

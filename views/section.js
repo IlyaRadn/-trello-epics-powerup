@@ -10,7 +10,7 @@
  */
 (function () {
   var t = TrelloPowerUp.iframe({ appKey: Epic.APP_KEY, appName: Epic.APP_NAME });
-  var VERSION = 'v62'; // shown in the unlinked view to confirm which connector version is loaded
+  var VERSION = 'v63'; // shown in the unlinked view to confirm which connector version is loaded
   var root;
   var busy = false;
   var LIMIT = 30;
@@ -298,9 +298,17 @@
       return t.cards('id', 'name', 'idList', 'closed', 'url', 'due', 'dueComplete', 'badges', 'members').then(function (active) {
         var have = {}; active.forEach(function (c) { have[c.id] = 1; });
         var missingIds = childIds.filter(function (id) { return !have[id]; });
-        // Fetch ONLY the archived sub-tasks by id (fast), not the whole board archive.
-        var archP = missingIds.length ? Epic.fetchArchivedByIds(t, missingIds) : Promise.resolve({});
-        return archP.then(function (arch) {
+        // Resolve missing sub-tasks by id in ONE pass: which are archived (still exist) and
+        // which are confirmed DELETED (HTTP 404). Falls back to {} when unauthorized.
+        var archP = missingIds.length ? Epic.resolveMissing(t, missingIds) : Promise.resolve({ archived: {}, dead: [] });
+        return archP.then(function (res) {
+          var arch = res.archived || {};
+          // Self-heal: drop ONLY ids that Trello confirmed deleted (404). Cards missing due to
+          // a transient/network error are never in `dead`, so a fetch failure can't mass-prune.
+          if (res.dead && res.dead.length) {
+            lastSelfWrite = Date.now();
+            Epic.pruneChildren(t, cardId, res.dead).catch(function () {});
+          }
           return Epic.computeStats(t, cardId, { childIds: childIds, activeCards: active, lists: lists, archivedById: arch }).then(function (s) {
             return safePaint(cardId, s, icon).then(function () {
               // Refresh the members cache via REST only when it's missing or stale (>30 min);
