@@ -64,18 +64,22 @@
     // Per-sub-task custom link. SHARDED per parent Subscription (`sub:links:<parentId>`)
     // so no single pluginData key hits Trello's 8192-char limit. Old global `sub:links`
     // is still read (backward-compat) but never written to again.
+    // Links map lives on the SUBSCRIPTION card ({childId: url}); legacy board keys are
+    // still read as a fallback so old links keep showing.
     getLinks: function (t, parentId) {
+      if (!parentId) return Promise.resolve({});
       return Promise.all([
+        Epic._cget(t, parentId, 'links', {}),
         Epic._get(t, 'sub:links', {}),
-        parentId ? Epic._get(t, key('links', parentId), {}) : Promise.resolve({}),
-      ]).then(function (r) { return Object.assign({}, r[0] || {}, r[1] || {}); });
+        Epic._get(t, key('links', parentId), {}),
+      ]).then(function (r) { return Object.assign({}, r[1] || {}, r[2] || {}, r[0] || {}); });
     },
     setLink: function (t, parentId, cardId, url) {
-      var k = key('links', parentId);
-      return Epic._get(t, k, {}).then(function (m) {
+      if (!parentId) return Promise.resolve();
+      return Epic._cget(t, parentId, 'links', {}).then(function (m) {
         m = m || {};
         if (url) m[cardId] = url; else delete m[cardId];
-        return Epic._set(t, k, m);
+        return Epic._cset(t, parentId, 'links', m);
       });
     },
 
@@ -286,8 +290,28 @@
     _set: function (t, k, v) { return t.set(SCOPE, VIS, k, v); },
     _remove: function (t, k) { return t.remove(SCOPE, VIS, k); },
 
-    // ---------- meta (role + icon) ----------
-    getMeta: function (t, cardId) { return Epic._get(t, key('meta', cardId), {}); },
+    // ---------- per-CARD store ----------
+    // Trello's pluginData limit is 8192 chars PER SECTION (scope+visibility), NOT per key.
+    // So we store each card's own data (meta/parent/children/links/backup) on that card's
+    // OWN card-scope section (its own 4096 budget) instead of cramming everything into the
+    // single board/shared section. `t.set(cardId, …)` can target any card by id.
+    _cget: function (t, cardId, k, dflt) {
+      return t.get(cardId, VIS, k).then(function (v) { return (v === undefined || v === null) ? dflt : v; }).catch(function () { return dflt; });
+    },
+    _cset: function (t, cardId, k, v) { return t.set(cardId, VIS, k, v); },
+    _cremove: function (t, cardId, k) { return t.remove(cardId, VIS, k).catch(function () {}); },
+
+    // ---------- meta (role + icon) — stored on the card itself ----------
+    getMeta: function (t, cardId) {
+      return Epic._cget(t, cardId, 'meta', null).then(function (m) {
+        if (m) return m;
+        // migrate from the legacy board-scoped key on first read
+        return Epic._get(t, key('meta', cardId), null).then(function (legacy) {
+          if (legacy) { Epic._cset(t, cardId, 'meta', legacy).catch(function () {}); Epic._remove(t, key('meta', cardId)).catch(function () {}); return legacy; }
+          return {};
+        });
+      });
+    },
 
     isSubscription: function (t, cardId) {
       return Epic.getMeta(t, cardId).then(function (m) { return m.role === 'subscription'; });
@@ -296,28 +320,33 @@
     makeSubscription: function (t, cardId, icon) {
       // If this card was un-marked before, restore its old sub-tasks from the backup
       // (only children still free — not ones re-assigned to another Subscription meanwhile).
-      return Epic._get(t, key('backup', cardId), null).then(function (backup) {
+      // Backup lives on the card itself now (legacy board key read as fallback).
+      return Epic._cget(t, cardId, 'backup', null).then(function (b) {
+        if (b) return b;
+        return Epic._get(t, key('backup', cardId), null);
+      }).then(function (backup) {
         var restore = Promise.resolve();
         if (backup && backup.children && backup.children.length) {
           var toRestore = [], chain = Promise.resolve();
           backup.children.forEach(function (cid) {
             chain = chain.then(function () {
               return Epic.getParent(t, cid).then(function (p) {
-                if (!p) { toRestore.push(cid); return Epic._set(t, key('parent', cid), cardId); }
+                if (!p) { toRestore.push(cid); return Epic._cset(t, cid, 'parent', cardId); }
               });
             });
           });
           restore = chain
             .then(function () { return Epic._setChildren(t, cardId, toRestore); })
-            .then(function () { return Epic._remove(t, key('backup', cardId)); });
+            .then(function () { return Epic._cremove(t, cardId, 'backup'); })
+            .then(function () { return Epic._remove(t, key('backup', cardId)).catch(function () {}); });
         } else if (backup) {
-          restore = Epic._remove(t, key('backup', cardId));
+          restore = Epic._cremove(t, cardId, 'backup').then(function () { return Epic._remove(t, key('backup', cardId)).catch(function () {}); });
         }
         return restore.then(function () {
           return Epic.getMeta(t, cardId).then(function (m) {
             m.role = 'subscription';
             if (!m.icon) m.icon = (backup && backup.meta && backup.meta.icon) || icon || Epic.autoIcon(cardId);
-            return Epic._set(t, key('meta', cardId), m); // ESSENTIAL — this makes the card a Subscription
+            return Epic._cset(t, cardId, 'meta', m); // ESSENTIAL — card-scoped, always writable
           });
         }).then(function () { return Epic._indexAdd(t, cardId).catch(function () {}); }); // index is secondary — never block
       });
@@ -328,14 +357,15 @@
       // "Make Subscription" can restore the same sub-tasks.
       return Promise.all([Epic.getChildren(t, cardId), Epic.getMeta(t, cardId)]).then(function (r) {
         var kids = r[0] || [], meta = r[1] || {};
-        return Epic._set(t, key('backup', cardId), { children: kids, meta: meta }).then(function () {
+        return Epic._cset(t, cardId, 'backup', { children: kids, meta: meta }).then(function () {
           var chain = Promise.resolve();
           kids.forEach(function (cid) {
-            chain = chain.then(function () { return Epic._remove(t, key('parent', cid)); });
+            chain = chain.then(function () { return Epic._cremove(t, cid, 'parent'); })
+              .then(function () { return Epic._remove(t, key('parent', cid)).catch(function () {}); });
           });
           return chain
             .then(function () { return Epic._removeChildren(t, cardId); })
-            .then(function () { return Epic._remove(t, key('meta', cardId)); })
+            .then(function () { return Epic._cremove(t, cardId, 'meta'); })
             .then(function () { return Epic._indexRemove(t, cardId); });
         });
       });
@@ -385,7 +415,7 @@
     setIcon: function (t, cardId, icon) {
       return Epic.getMeta(t, cardId).then(function (m) {
         m.icon = icon;
-        return Epic._set(t, key('meta', cardId), m);
+        return Epic._cset(t, cardId, 'meta', m);
       });
     },
 
@@ -395,17 +425,33 @@
     },
 
     // ---------- relationships ----------
-    getParent: function (t, childId) { return Epic._get(t, key('parent', childId), null); },
-    // Children list is SHARDED across keys (sub:children:<id>, …:1, …:2 …) so no single
-    // pluginData key hits Trello's 8192-char limit even with hundreds of sub-tasks.
+    // Parent link is stored on the CHILD card (its own section), with legacy migration.
+    getParent: function (t, childId) {
+      return Epic._cget(t, childId, 'parent', null).then(function (p) {
+        if (p) return p;
+        return Epic._get(t, key('parent', childId), null).then(function (legacy) {
+          if (legacy) { Epic._cset(t, childId, 'parent', legacy).catch(function () {}); Epic._remove(t, key('parent', childId)).catch(function () {}); return legacy; }
+          return null;
+        });
+      });
+    },
+    // Children list is stored on the SUBSCRIPTION card (its own section). Legacy data lived
+    // in board-scoped (optionally sharded) keys — migrate on first read.
     _childKey: function (parentId, i) { return i ? key('children', parentId) + ':' + i : key('children', parentId); },
     getChildren: function (t, parentId) {
-      var reads = [];
-      for (var i = 0; i < 6; i++) reads.push(Epic._get(t, Epic._childKey(parentId, i), []));
-      return Promise.all(reads).then(function (parts) {
-        var all = [], seen = {};
-        parts.forEach(function (arr) { (arr || []).forEach(function (id) { if (!seen[id]) { seen[id] = 1; all.push(id); } }); });
-        return all;
+      return Epic._cget(t, parentId, 'children', null).then(function (arr) {
+        if (arr) return arr;
+        var reads = [];
+        for (var i = 0; i < 6; i++) reads.push(Epic._get(t, Epic._childKey(parentId, i), []));
+        return Promise.all(reads).then(function (parts) {
+          var all = [], seen = {};
+          parts.forEach(function (a) { (a || []).forEach(function (id) { if (!seen[id]) { seen[id] = 1; all.push(id); } }); });
+          if (all.length) {
+            Epic._cset(t, parentId, 'children', all).catch(function () {});
+            for (var i = 0; i < 6; i++) Epic._remove(t, Epic._childKey(parentId, i)).catch(function () {});
+          }
+          return all;
+        });
       });
     },
 
@@ -432,7 +478,8 @@
           chain = chain.then(function () { return Epic._pullChild(t, oldParent, childId); });
         }
         return chain
-          .then(function () { return Epic._set(t, key('parent', childId), parentId); })
+          .then(function () { return Epic._cset(t, childId, 'parent', parentId); })
+          .then(function () { return Epic._remove(t, key('parent', childId)).catch(function () {}); }) // clear legacy
           .then(function () { return Epic._pushChild(t, parentId, childId); });
       });
     },
@@ -443,58 +490,25 @@
       return Epic.getParent(t, childId).then(function (p) {
         var chain = Promise.resolve();
         if (p) chain = chain.then(function () { return Epic._pullChild(t, p, childId); });
-        return chain.then(function () { return Epic._remove(t, key('parent', childId)); });
+        return chain
+          .then(function () { return Epic._cremove(t, childId, 'parent'); })
+          .then(function () { return Epic._remove(t, key('parent', childId)).catch(function () {}); });
       });
     },
 
     _pushChild: function (t, parentId, childId) {
-      var reads = [];
-      for (var i = 0; i < 6; i++) reads.push(Epic._get(t, Epic._childKey(parentId, i), []));
-      return Promise.all(reads).then(function (parts) {
-        for (var j = 0; j < parts.length; j++) if ((parts[j] || []).indexOf(childId) >= 0) return; // already linked
-        for (var i = 0; i < 6; i++) {
-          var arr = (parts[i] || []).concat([childId]);
-          if (JSON.stringify(arr).length < 6000) return Epic._set(t, Epic._childKey(parentId, i), arr);
-        }
-        // all 6 shards full (1000+ children) — append to the last shard anyway
-        return Epic._set(t, Epic._childKey(parentId, 5), (parts[5] || []).concat([childId]));
+      return Epic.getChildren(t, parentId).then(function (arr) {
+        if (arr.indexOf(childId) !== -1) return;
+        return Epic._cset(t, parentId, 'children', arr.concat([childId]));
       });
     },
     _pullChild: function (t, parentId, childId) {
-      var chain = Promise.resolve();
-      var mk = function (i) { return function () {
-        return Epic._get(t, Epic._childKey(parentId, i), []).then(function (arr) {
-          arr = arr || [];
-          if (arr.indexOf(childId) < 0) return;
-          return Epic._set(t, Epic._childKey(parentId, i), arr.filter(function (x) { return x !== childId; }));
-        });
-      }; };
-      for (var i = 0; i < 6; i++) chain = chain.then(mk(i));
-      return chain;
-    },
-    // Remove every children shard (used by unmakeSubscription).
-    _removeChildren: function (t, parentId) {
-      var chain = Promise.resolve();
-      var mk = function (i) { return function () { return Epic._remove(t, Epic._childKey(parentId, i)); }; };
-      for (var i = 0; i < 6; i++) chain = chain.then(mk(i));
-      return chain;
-    },
-    // Distribute an id list across shards under the size cap (used by makeSubscription restore + prune).
-    _setChildren: function (t, parentId, ids) {
-      var shards = [[]];
-      (ids || []).forEach(function (id) {
-        var cur = shards[shards.length - 1];
-        if (JSON.stringify(cur.concat([id])).length >= 6000) shards.push([]);
-        shards[shards.length - 1].push(id);
+      return Epic.getChildren(t, parentId).then(function (arr) {
+        return Epic._cset(t, parentId, 'children', arr.filter(function (x) { return x !== childId; }));
       });
-      var chain = Promise.resolve();
-      var mk = function (i) { return function () {
-        var val = shards[i] || [];
-        return val.length ? Epic._set(t, Epic._childKey(parentId, i), val) : Epic._remove(t, Epic._childKey(parentId, i));
-      }; };
-      for (var i = 0; i < 6; i++) chain = chain.then(mk(i));
-      return chain;
     },
+    _removeChildren: function (t, parentId) { return Epic._cremove(t, parentId, 'children'); },
+    _setChildren: function (t, parentId, ids) { return Epic._cset(t, parentId, 'children', ids || []); },
 
     // ---------- stats ----------
     findDoneListId: function (lists, doneListName) {
