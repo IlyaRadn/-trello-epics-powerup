@@ -308,7 +308,7 @@
             });
           });
           restore = chain
-            .then(function () { return Epic._set(t, key('children', cardId), toRestore); })
+            .then(function () { return Epic._setChildren(t, cardId, toRestore); })
             .then(function () { return Epic._remove(t, key('backup', cardId)); });
         } else if (backup) {
           restore = Epic._remove(t, key('backup', cardId));
@@ -334,7 +334,7 @@
             chain = chain.then(function () { return Epic._remove(t, key('parent', cid)); });
           });
           return chain
-            .then(function () { return Epic._remove(t, key('children', cardId)); })
+            .then(function () { return Epic._removeChildren(t, cardId); })
             .then(function () { return Epic._remove(t, key('meta', cardId)); })
             .then(function () { return Epic._indexRemove(t, cardId); });
         });
@@ -372,7 +372,18 @@
 
     // ---------- relationships ----------
     getParent: function (t, childId) { return Epic._get(t, key('parent', childId), null); },
-    getChildren: function (t, parentId) { return Epic._get(t, key('children', parentId), []); },
+    // Children list is SHARDED across keys (sub:children:<id>, …:1, …:2 …) so no single
+    // pluginData key hits Trello's 8192-char limit even with hundreds of sub-tasks.
+    _childKey: function (parentId, i) { return i ? key('children', parentId) + ':' + i : key('children', parentId); },
+    getChildren: function (t, parentId) {
+      var reads = [];
+      for (var i = 0; i < 6; i++) reads.push(Epic._get(t, Epic._childKey(parentId, i), []));
+      return Promise.all(reads).then(function (parts) {
+        var all = [], seen = {};
+        parts.forEach(function (arr) { (arr || []).forEach(function (id) { if (!seen[id]) { seen[id] = 1; all.push(id); } }); });
+        return all;
+      });
+    },
 
     // Would linking child->parent create a cycle? (parent is a descendant of child)
     wouldCycle: function (t, childId, parentId) {
@@ -413,16 +424,52 @@
     },
 
     _pushChild: function (t, parentId, childId) {
-      return Epic.getChildren(t, parentId).then(function (arr) {
-        if (arr.indexOf(childId) === -1) arr.push(childId);
-        return Epic._set(t, key('children', parentId), arr);
+      var reads = [];
+      for (var i = 0; i < 6; i++) reads.push(Epic._get(t, Epic._childKey(parentId, i), []));
+      return Promise.all(reads).then(function (parts) {
+        for (var j = 0; j < parts.length; j++) if ((parts[j] || []).indexOf(childId) >= 0) return; // already linked
+        for (var i = 0; i < 6; i++) {
+          var arr = (parts[i] || []).concat([childId]);
+          if (JSON.stringify(arr).length < 6000) return Epic._set(t, Epic._childKey(parentId, i), arr);
+        }
+        // all 6 shards full (1000+ children) — append to the last shard anyway
+        return Epic._set(t, Epic._childKey(parentId, 5), (parts[5] || []).concat([childId]));
       });
     },
     _pullChild: function (t, parentId, childId) {
-      return Epic.getChildren(t, parentId).then(function (arr) {
-        var next = arr.filter(function (x) { return x !== childId; });
-        return Epic._set(t, key('children', parentId), next);
+      var chain = Promise.resolve();
+      var mk = function (i) { return function () {
+        return Epic._get(t, Epic._childKey(parentId, i), []).then(function (arr) {
+          arr = arr || [];
+          if (arr.indexOf(childId) < 0) return;
+          return Epic._set(t, Epic._childKey(parentId, i), arr.filter(function (x) { return x !== childId; }));
+        });
+      }; };
+      for (var i = 0; i < 6; i++) chain = chain.then(mk(i));
+      return chain;
+    },
+    // Remove every children shard (used by unmakeSubscription).
+    _removeChildren: function (t, parentId) {
+      var chain = Promise.resolve();
+      var mk = function (i) { return function () { return Epic._remove(t, Epic._childKey(parentId, i)); }; };
+      for (var i = 0; i < 6; i++) chain = chain.then(mk(i));
+      return chain;
+    },
+    // Distribute an id list across shards under the size cap (used by makeSubscription restore + prune).
+    _setChildren: function (t, parentId, ids) {
+      var shards = [[]];
+      (ids || []).forEach(function (id) {
+        var cur = shards[shards.length - 1];
+        if (JSON.stringify(cur.concat([id])).length >= 6000) shards.push([]);
+        shards[shards.length - 1].push(id);
       });
+      var chain = Promise.resolve();
+      var mk = function (i) { return function () {
+        var val = shards[i] || [];
+        return val.length ? Epic._set(t, Epic._childKey(parentId, i), val) : Epic._remove(t, Epic._childKey(parentId, i));
+      }; };
+      for (var i = 0; i < 6; i++) chain = chain.then(mk(i));
+      return chain;
     },
 
     // ---------- stats ----------
