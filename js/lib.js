@@ -61,13 +61,21 @@
     APP_NAME: 'Duck Epics',
 
     // ---------- token (our own OAuth flow, stored member-private) ----------
-    // Per-sub-task custom link (all in one board-shared map for a single read).
-    getLinks: function (t) { return Epic._get(t, 'sub:links', {}); },
-    setLink: function (t, cardId, url) {
-      return Epic._get(t, 'sub:links', {}).then(function (m) {
+    // Per-sub-task custom link. SHARDED per parent Subscription (`sub:links:<parentId>`)
+    // so no single pluginData key hits Trello's 8192-char limit. Old global `sub:links`
+    // is still read (backward-compat) but never written to again.
+    getLinks: function (t, parentId) {
+      return Promise.all([
+        Epic._get(t, 'sub:links', {}),
+        parentId ? Epic._get(t, key('links', parentId), {}) : Promise.resolve({}),
+      ]).then(function (r) { return Object.assign({}, r[0] || {}, r[1] || {}); });
+    },
+    setLink: function (t, parentId, cardId, url) {
+      var k = key('links', parentId);
+      return Epic._get(t, k, {}).then(function (m) {
         m = m || {};
         if (url) m[cardId] = url; else delete m[cardId];
-        return Epic._set(t, 'sub:links', m);
+        return Epic._set(t, k, m);
       });
     },
 
@@ -95,13 +103,15 @@
         return fetch('https://api.trello.com/1/cards?' + qs, { method: 'POST' })
           .then(function (resp) { if (!resp.ok) throw new Error('rest ' + resp.status); return resp.json(); })
           .then(function (card) {
-            var after = Epic.setParent(t, card.id, opts.parentId);
-            if (opts.link) {
-              after = after
-                .then(function () { return Epic.setLink(t, card.id, opts.link); })
-                .then(function () { return Epic.linkToDesc(t, card.id, opts.link); });
-            }
-            return after.then(function () { return card.id; });
+            // Linking the sub-task to its parent is ESSENTIAL. The custom link is
+            // optional — never let a link write (or its size limit) break creation.
+            return Epic.setParent(t, card.id, opts.parentId).then(function () {
+              if (opts.link) {
+                Epic.setLink(t, opts.parentId, card.id, opts.link).catch(function () {});
+                Epic.linkToDesc(t, card.id, opts.link).catch(function () {});
+              }
+              return card.id;
+            });
           });
       });
     },
@@ -116,7 +126,12 @@
         map = map || {};
         var avatars = {};
         Object.keys(map).forEach(function (id) { if (map[id].avatarUrl) avatars[id] = map[id].avatarUrl; });
-        if (Object.keys(avatars).length) Epic._set(t, 'sub:members', { ts: Date.now(), avatars: avatars });
+        // Only cache if it stays comfortably under the 8192-char pluginData key limit
+        // (big boards can have enough members that the avatar map would overflow).
+        var payload = { ts: Date.now(), avatars: avatars };
+        if (Object.keys(avatars).length && JSON.stringify(payload).length < 7000) {
+          Epic._set(t, 'sub:members', payload).catch(function () {});
+        }
         return map;
       });
     },

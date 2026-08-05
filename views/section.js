@@ -273,7 +273,7 @@
 
   // ---------- subscription (parent) ----------
   function renderParent(cardId) {
-    return Promise.all([Epic.getChildren(t, cardId), Epic.getIcon(t, cardId), t.lists('id', 'name'), Epic.getStatusLists(t), Epic.getCollapsed(t), Epic.getLinks(t), Epic.getMembersCache(t)]).then(function (pre) {
+    return Promise.all([Epic.getChildren(t, cardId), Epic.getIcon(t, cardId), t.lists('id', 'name'), Epic.getStatusLists(t), Epic.getCollapsed(t), Epic.getLinks(t, cardId), Epic.getMembersCache(t)]).then(function (pre) {
       var childIds = pre[0], icon = pre[1], lists = pre[2], statusCfg = pre[3];
       collapsedGroups = pre[4] || {};
       LINKS = pre[5] || {};
@@ -569,7 +569,8 @@
     function saveAnd(url, done) {
       LINKS[cardId] = url; if (!url) delete LINKS[cardId];
       lastSelfWrite = Date.now();
-      Epic.setLink(t, cardId, url)
+      var parentId = (lastPaint && lastPaint.cardId) || null;
+      Epic.setLink(t, parentId, cardId, url)
         .then(function () { return url ? Epic.linkToDesc(t, cardId, url) : null; })
         .then(done).catch(done);
     }
