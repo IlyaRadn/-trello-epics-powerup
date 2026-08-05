@@ -1,0 +1,6 @@
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://p.trellocdn.com 'unsafe-inline'; style-src 'self' https://p.trellocdn.com 'unsafe-inline'; img-src 'self' https: data:; font-src 'self' https://p.trellocdn.com data:; connect-src 'self' https://api.trello.com https://trello.com https://*.trellocdn.com; frame-ancestors https://trello.com https://*.trello.com; base-uri 'self'; form-action 'self'
+  Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(), microphone=(), camera=()
