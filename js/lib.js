@@ -515,10 +515,20 @@
           chain = chain.then(function () { return Epic._pullChild(t, oldParent, childId); });
         }
         return chain
-          .then(function () { return Epic._cset(t, childId, 'parent', parentId); })
-          .then(function () { return Epic._remove(t, key('parent', childId)).catch(function () {}); }) // clear legacy
+          .then(function () { return Epic._setParentPtr(t, childId, parentId); })
           .then(function () { return Epic._pushChild(t, parentId, childId); });
       });
+    },
+
+    // Write the child->parent pointer. Prefer the child card's OWN scope, but a JUST-created
+    // card is not yet in Trello's board model, so t.set(childId,...) throws "Card not found or
+    // not on current board". Fall back to the board-scope legacy key (getParent migrates it to
+    // card scope the first time the child is opened). Never throws — the essential link is the
+    // subscription's children list (_pushChild), which must run regardless.
+    _setParentPtr: function (t, childId, parentId) {
+      return Epic._cset(t, childId, 'parent', parentId)
+        .then(function () { return Epic._remove(t, key('parent', childId)).catch(function () {}); })
+        .catch(function () { return Epic._set(t, key('parent', childId), parentId).catch(function () {}); });
     },
 
     addChild: function (t, parentId, childId) { return Epic.setParent(t, childId, parentId); },
