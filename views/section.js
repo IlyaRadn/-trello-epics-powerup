@@ -10,7 +10,7 @@
  */
 (function () {
   var t = TrelloPowerUp.iframe({ appKey: Epic.APP_KEY, appName: Epic.APP_NAME });
-  var VERSION = 'v64'; // shown in the unlinked view to confirm which connector version is loaded
+  var VERSION = 'v65'; // shown in the unlinked view to confirm which connector version is loaded
   var root;
   var busy = false;
   var LIMIT = 30;
@@ -173,8 +173,9 @@
       ? '<button class="linkbtn has" data-openlink="' + Views.esc(link) + '" title="' + Views.esc(link) + '">🔗</button>' +
         '<button class="linkbtn" data-editlink="' + it.id + '" title="Edit link">✎</button>'
       : '<button class="linkbtn" data-editlink="' + it.id + '" title="Add link">🔗</button>';
+    var archBtn = '<button class="linkbtn" data-arch="' + it.id + '" title="Archive task">📦</button>';
     var inner =
-      '<div class="toprow">' + check + nameHtml + linkBtns + avsCell + '</div>' +
+      '<div class="toprow">' + check + nameHtml + linkBtns + archBtn + avsCell + '</div>' +
       '<div class="meta"><span class="chips">' + chips + '</span></div>' +
       '<div class="ctl">' + colSelect(it) + '</div>';
     // A <div> (not <button>) so the inline <select> works; draggable for column moves.
@@ -411,6 +412,26 @@
         b.disabled = true; b.textContent = '…';
         Epic.unarchiveCard(t, b.getAttribute('data-unarch')).then(render)
           .catch(function () { b.disabled = false; b.textContent = 'Unarchive'; });
+      });
+    });
+    // Archive a sub-task straight from its row (📦). Optimistic: drop the row now, PUT in
+    // background; on failure re-render to restore the true state.
+    root.querySelectorAll('[data-arch]').forEach(function (b) {
+      b.addEventListener('mousedown', function (e) { e.stopPropagation(); });
+      b.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var id = b.getAttribute('data-arch');
+        b.disabled = true; b.textContent = '…';
+        var lp = lastPaint;
+        if (lp && lp.s) {
+          // Move the row into the 📦 Archive group instantly (total/done are unchanged —
+          // an archived card is still a child and keeps its done state).
+          lp.s.items.forEach(function (it) { if (it.id === id) it.archived = true; });
+          paintParent(lp.cardId, lp.s, lp.icon); fit();
+        }
+        lastSelfWrite = Date.now();
+        Epic.archiveCard(t, id).then(function () { lastSelfWrite = Date.now(); })
+          .catch(function (err) { render(); if (err && err.message === 'auth') doAuthorize(render); });
       });
     });
     document.getElementById('ic').addEventListener('click', function () { showIconPicker(cardId); });
