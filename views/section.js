@@ -10,7 +10,7 @@
  */
 (function () {
   var t = TrelloPowerUp.iframe({ appKey: Epic.APP_KEY, appName: Epic.APP_NAME });
-  var VERSION = 'v66'; // shown in the unlinked view to confirm which connector version is loaded
+  var VERSION = 'v67'; // shown in the unlinked view to confirm which connector version is loaded
   var root;
   var busy = false;
   var LIMIT = 30;
@@ -267,15 +267,42 @@
     Promise.all([Epic.listSubscriptions(t), t.cards('id', 'name')]).then(function (r) {
       var subs = r[0].filter(function (id) { return id !== cardId; });
       var nameOf = {}; r[1].forEach(function (x) { nameOf[x.id] = x.name; });
-      root.innerHTML = backBar() + (subs.length
-        ? '<p class="small muted">Choose a Subscription:</p><div class="list">' +
-          subs.map(function (id) { return '<button class="item" data-id="' + id + '"><span class="name">' + Views.esc(nameOf[id] || '(card)') + '</span></button>'; }).join('') + '</div>'
-        : '<p class="muted small">No Subscriptions on this board yet.</p>');
-      wireBack();
-      root.querySelectorAll('.list .item').forEach(function (el) {
-        el.addEventListener('click', function () { Epic.setParent(t, cardId, el.getAttribute('data-id')).then(render).catch(function () { render(); }); });
+      // t.cards() doesn't return every card on a big board (and the index can hold ids of
+      // deleted subscriptions). Resolve missing names via REST, and DROP ids Trello confirms
+      // deleted (404) so the picker only lists real, named Subscriptions.
+      var missing = subs.filter(function (id) { return !nameOf[id]; });
+      var resolveP = missing.length ? Epic.resolveMissing(t, missing) : Promise.resolve({ archived: {}, dead: [] });
+      resolveP.then(function (res) {
+        var deadSet = {}; (res.dead || []).forEach(function (id) { deadSet[id] = 1; });
+        Object.keys(res.archived || {}).forEach(function (id) { nameOf[id] = res.archived[id].name; });
+        var list = subs.filter(function (id) { return !deadSet[id]; });
+        list.sort(function (a, b) { return (nameOf[a] || '￿').localeCompare(nameOf[b] || '￿'); });
+        var itemsHtml = list.map(function (id) {
+          var nm = nameOf[id] || '(untitled)';
+          return '<button class="item" data-id="' + id + '" data-name="' + Views.esc(nm.toLowerCase()) + '"><span class="name">' + Views.esc(nm) + '</span></button>';
+        }).join('');
+        root.innerHTML = backBar() + (list.length
+          ? '<p class="small muted">Choose a Subscription:</p>' +
+            '<input type="text" id="subsearch" placeholder="Search subscriptions…" autocomplete="off" style="margin-bottom:8px">' +
+            '<div class="list" id="sublist">' + itemsHtml + '</div>' +
+            '<p class="muted small" id="nomatch" style="display:none">No matches.</p>'
+          : '<p class="muted small">No Subscriptions on this board yet.</p>');
+        wireBack();
+        var si = document.getElementById('subsearch');
+        if (si) si.addEventListener('input', function () {
+          var f = si.value.trim().toLowerCase(), any = false;
+          root.querySelectorAll('#sublist .item').forEach(function (el) {
+            var m = !f || el.getAttribute('data-name').indexOf(f) >= 0;
+            el.style.display = m ? '' : 'none'; if (m) any = true;
+          });
+          var nm = document.getElementById('nomatch'); if (nm) nm.style.display = any ? 'none' : '';
+        });
+        root.querySelectorAll('#sublist .item').forEach(function (el) {
+          el.addEventListener('click', function () { Epic.setParent(t, cardId, el.getAttribute('data-id')).then(render).catch(function () { render(); }); });
+        });
+        if (si) si.focus();
+        fit();
       });
-      fit();
     });
   }
 
@@ -802,12 +829,14 @@
     return Promise.all([Epic.getIcon(t, parentId), t.cards('id', 'name', 'url')]).then(function (r) {
       var icon = r[0], cards = r[1];
       var p = cards.filter(function (x) { return x.id === parentId; })[0];
-      var name = p ? p.name : '(archived)', url = (p && p.url) || '';
-      paintChild(cardId, parentId, icon, name, url, null); // fast paint
-      // Enrich with the parent Subscription's date / assignees / labels (REST).
+      var name = (p && p.name) || '', url = (p && p.url) || '';
+      paintChild(cardId, parentId, icon, name || 'Loading…', url, null); // fast paint
+      // The parent Subscription is often NOT in t.cards() on a big board — resolve its real
+      // name + date/assignees/labels via REST. Never leave the name blank.
       Epic.fetchCardDetail(t, parentId).then(function (d) {
-        if (d) paintChild(cardId, parentId, icon, d.name || name, d.url || url, d);
-      }).catch(function () {});
+        if (d) paintChild(cardId, parentId, icon, d.name || name || '(untitled)', d.url || url, d);
+        else paintChild(cardId, parentId, icon, name || '(archived / not loaded)', url, null);
+      }).catch(function () { paintChild(cardId, parentId, icon, name || '(archived / not loaded)', url, null); });
     });
   }
 
