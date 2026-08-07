@@ -10,7 +10,7 @@
  */
 (function () {
   var t = TrelloPowerUp.iframe({ appKey: Epic.APP_KEY, appName: Epic.APP_NAME });
-  var VERSION = 'v67'; // shown in the unlinked view to confirm which connector version is loaded
+  var VERSION = 'v68'; // shown in the unlinked view to confirm which connector version is loaded
   var root;
   var busy = false;
   var LIMIT = 30;
@@ -173,9 +173,10 @@
       ? '<button class="linkbtn has" data-openlink="' + Views.esc(link) + '" title="' + Views.esc(link) + '">🔗</button>' +
         '<button class="linkbtn" data-editlink="' + it.id + '" title="Edit link">✎</button>'
       : '<button class="linkbtn" data-editlink="' + it.id + '" title="Add link">🔗</button>';
+    var openBtn = it.url ? '<button class="linkbtn" data-open="' + Views.esc(it.url) + '" title="Open in new tab">↗</button>' : '';
     var archBtn = '<button class="linkbtn" data-arch="' + it.id + '" title="Archive task">📦</button>';
     var inner =
-      '<div class="toprow">' + check + nameHtml + linkBtns + archBtn + avsCell + '</div>' +
+      '<div class="toprow">' + check + nameHtml + linkBtns + openBtn + archBtn + avsCell + '</div>' +
       '<div class="meta"><span class="chips">' + chips + '</span></div>' +
       '<div class="ctl">' + colSelect(it) + '</div>';
     // A <div> (not <button>) so the inline <select> works; draggable for column moves.
