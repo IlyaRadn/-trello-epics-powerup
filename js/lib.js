@@ -140,6 +140,20 @@
       });
     },
 
+    // Fetch idMembers for every open card on the board in ONE REST call → { cardId: [memberId] }.
+    // Trello's t.cards() rejects the 'idMembers' field ("Command: cards"), and it sometimes
+    // returns an empty expanded `members` array, so this is the reliable source of assignees.
+    fetchCardMembers: function (t, boardId) {
+      return Epic.getToken(t).then(function (token) {
+        if (!token || !Epic.APP_KEY) return {};
+        var qs = 'fields=idMembers&filter=open&key=' + encodeURIComponent(Epic.APP_KEY) + '&token=' + encodeURIComponent(token);
+        return fetch('https://api.trello.com/1/boards/' + boardId + '/cards?' + qs)
+          .then(function (r) { return r.ok ? r.json() : []; })
+          .then(function (arr) { var m = {}; arr.forEach(function (c) { m[c.id] = c.idMembers || []; }); return m; })
+          .catch(function () { return {}; });
+      });
+    },
+
     // Fetch board members via REST as id->{avatarUrl,fullName,...} (t.cards('members')
     // omits avatar URLs, so we look them up here). Empty map if not authorized.
     fetchMembers: function (t, boardId) {
