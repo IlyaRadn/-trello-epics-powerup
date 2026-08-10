@@ -319,11 +319,19 @@
     // So we store each card's own data (meta/parent/children/links/backup) on that card's
     // OWN card-scope section (its own 4096 budget) instead of cramming everything into the
     // single board/shared section. `t.set(cardId, …)` can target any card by id.
+    // NOTE: in some contexts (notably card-badges) Trello's t.get/set/remove throws SYNCHRONOUSLY
+    // ("Invalid value for scope") when the scope is a card id rather than a keyword. A plain
+    // `.catch()` can't catch a sync throw, so it escapes as a Power-Up "unhandled error". We wrap
+    // every call in Promise.resolve().then(...) to turn a sync throw into a catchable rejection,
+    // and _cget falls back to the 'card' scope (there `t` is bound to the current card).
     _cget: function (t, cardId, k, dflt) {
-      return t.get(cardId, VIS, k).then(function (v) { return (v === undefined || v === null) ? dflt : v; }).catch(function () { return dflt; });
+      return Promise.resolve().then(function () { return t.get(cardId, VIS, k); })
+        .catch(function () { return Promise.resolve().then(function () { return t.get('card', VIS, k); }).catch(function () { return dflt; }); })
+        .then(function (v) { return (v === undefined || v === null) ? dflt : v; })
+        .catch(function () { return dflt; });
     },
-    _cset: function (t, cardId, k, v) { return t.set(cardId, VIS, k, v); },
-    _cremove: function (t, cardId, k) { return t.remove(cardId, VIS, k).catch(function () {}); },
+    _cset: function (t, cardId, k, v) { return Promise.resolve().then(function () { return t.set(cardId, VIS, k, v); }); },
+    _cremove: function (t, cardId, k) { return Promise.resolve().then(function () { return t.remove(cardId, VIS, k); }).catch(function () {}); },
 
     // ---------- meta (role + icon) — stored on the card itself ----------
     getMeta: function (t, cardId) {

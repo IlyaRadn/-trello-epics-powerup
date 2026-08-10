@@ -10,7 +10,7 @@
  */
 (function () {
   var t = TrelloPowerUp.iframe({ appKey: Epic.APP_KEY, appName: Epic.APP_NAME });
-  var VERSION = 'v72'; // shown in the unlinked view to confirm which connector version is loaded
+  var VERSION = 'v73'; // shown in the unlinked view to confirm which connector version is loaded
   var root;
   var busy = false;
   var LIMIT = 30;

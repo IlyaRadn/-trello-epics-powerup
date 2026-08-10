@@ -64,7 +64,7 @@
           }
           return buttons;
         });
-      });
+      }).catch(function () { return []; });
     },
 
     // ---- badge on the closed card ----
@@ -88,7 +88,7 @@
             });
           });
         });
-      });
+      }).catch(function () { return []; });
     },
 
     // ---- badge on the open card detail ----
@@ -100,7 +100,7 @@
             return [{ title: 'Sub-tasks', text: s.done + '/' + s.total + ' done', color: s.total && s.done === s.total ? 'green' : 'light-gray' }];
           });
         });
-      });
+      }).catch(function () { return []; });
     },
 
     // ---- section on the back of the card (ALWAYS shown; handles all states) ----
@@ -112,7 +112,7 @@
         return {
           title: 'Duck Epics',
           icon: ICON,
-          content: { type: 'iframe', url: t.signUrl(url('views/section.html?v=72&c=' + c.id)), height: 200 },
+          content: { type: 'iframe', url: t.signUrl(url('views/section.html?v=73&c=' + c.id)), height: 200 },
         };
       });
     },
