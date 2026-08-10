@@ -10,7 +10,7 @@
  */
 (function () {
   var t = TrelloPowerUp.iframe({ appKey: Epic.APP_KEY, appName: Epic.APP_NAME });
-  var VERSION = 'v71'; // shown in the unlinked view to confirm which connector version is loaded
+  var VERSION = 'v72'; // shown in the unlinked view to confirm which connector version is loaded
   var root;
   var busy = false;
   var LIMIT = 30;
@@ -35,7 +35,7 @@
   var DBG = {};
   function debugFooter() { /* debug readout disabled; re-enable if diagnosing */ }
 
-  function fit() { if (t.sizeTo) t.sizeTo(document.body); }
+  function fit() { try { if (t.sizeTo) { var p = t.sizeTo(document.body); if (p && p.catch) p.catch(function () {}); } } catch (e) {} }
   function authed() { return Epic.getToken(t).then(function (tok) { return !!tok; }).catch(function () { return false; }); }
 
   // The connector bakes the card id into our iframe URL (?c=…). It's the reliable

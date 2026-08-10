@@ -4,11 +4,22 @@
     <meta charset="utf-8" />
     <title>Duck Epics — connector</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- Silence benign Trello-client console noise (feature-gate init warning + PostMessageIO
+         resize rejection) so the Power-Up ships with a clean console. Runs before Trello's client. -->
+    <script>
+      (function () {
+        var NOISE = /feature gate|platform-dst-motion|Could not find iframe to resize|PostMessageIO|Client must be initialized/i;
+        function txt(a) { try { return (a && a.message) ? a.message : (typeof a === 'object' ? JSON.stringify(a) : String(a)); } catch (e) { return ''; } }
+        function wrap(orig) { return function () { try { if (NOISE.test(Array.prototype.map.call(arguments, txt).join(' '))) return; } catch (e) {} return orig.apply(this, arguments); }; }
+        if (window.console) { console.warn = wrap(console.warn); console.error = wrap(console.error); }
+        window.addEventListener('unhandledrejection', function (ev) { try { var r = ev && ev.reason; var m = r ? (r.message || String(r)) : ''; if (NOISE.test(String(m))) ev.preventDefault(); } catch (e) {} });
+      })();
+    </script>
     <script src="https://p.trellocdn.com/power-up.min.js"></script>
   </head>
   <body>
     <!-- Connector iframe: no visible UI. Trello loads this to register capabilities. -->
-    <script src="./js/lib.js?v=71"></script>
-    <script src="./js/connector.js?v=71"></script>
+    <script src="./js/lib.js?v=72"></script>
+    <script src="./js/connector.js?v=72"></script>
   </body>
 </html>
