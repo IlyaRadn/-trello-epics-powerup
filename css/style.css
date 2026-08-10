@@ -1,5 +1,6 @@
 /* Shared styles — Duck Epics section. Soft tinted panel (variant A). */
 :root {
+  color-scheme: light; /* the section is a light panel — never let Trello's dark mode paint form controls dark */
   --ink: #172b4d; --sub: #5e6c84; --line: #dfe1e6; --bg: #f4f5f7;
   --green-bg: #e3fcef; --green: #006644; --blue: #0052cc;
   --panel: #eef3fb; --panel-text: #0c447c; --panel-muted: #185fa5; --panel-track: #d7e5f7;
@@ -127,9 +128,16 @@ select.move.done { background-color: var(--green-bg); color: var(--green); borde
 
 /* form */
 label { display: block; font-weight: 600; font-size: 12px; margin: 10px 0 4px; color: var(--panel-text); }
-input[type=text], select {
+input[type=text], input[type=date], input[type=url], input[type=search], input[type=number], input[type=email], textarea, select {
   width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: 6px; font: inherit;
-  background: #fff; color: var(--ink);
+  background: #fff; color: var(--ink); color-scheme: light;
+}
+input::placeholder, textarea::placeholder { color: var(--sub); opacity: 1; }
+/* Chrome autofill paints a dark background in dark mode — force it back to a readable light field */
+input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus, input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #fff inset;
+  -webkit-text-fill-color: var(--ink);
+  caret-color: var(--ink);
 }
 .btn {
   display: inline-block; border: 0; border-radius: 6px; padding: 8px 14px;
