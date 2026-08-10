@@ -10,11 +10,14 @@
  */
 (function () {
   var t = TrelloPowerUp.iframe({ appKey: Epic.APP_KEY, appName: Epic.APP_NAME });
-  var VERSION = 'v68'; // shown in the unlinked view to confirm which connector version is loaded
+  var VERSION = 'v69'; // shown in the unlinked view to confirm which connector version is loaded
   var root;
   var busy = false;
   var LIMIT = 30;
   var MEMBER_AVATARS = {}; // memberId -> avatarUrl (from REST, cached across renders)
+  var BOARD_MEMBERS = {};  // memberId -> {id,fullName,initials,avatarUrl} (fallback when t.cards
+                           // returns idMembers but no expanded `members` — renders row avatars)
+  var boardMembersLoaded = false; // true once the full board members map (names+avatars) is fetched
   var lastRendered = null; // id of the card we last rendered for (navigation watch)
   var painted = false; // once painted, re-renders keep old content (no "Loading" flicker)
   var expandedList = false; // subscription list: collapsed to 10 vs "view all"
@@ -137,8 +140,15 @@
     }
     return '<select class="move' + (it.done ? ' done' : '') + '" data-id="' + it.id + '" title="Move to column">' + opts + '</select>';
   }
+  // Resolve a row's assignees to member objects. Prefer Trello's expanded `members`; if that's
+  // empty (Trello increasingly returns only idMembers), map ids through the board members map —
+  // a bare {id} still renders (avatarHtml pulls the photo from the avatar cache by id).
+  function rowMembers(it) {
+    if (it.members && it.members.length) return it.members;
+    return (it.idMembers || []).map(function (id) { return BOARD_MEMBERS[id] || { id: id }; });
+  }
   function subRow(it) {
-    var avs = (it.members || []).slice(0, 3).map(avatarHtml).join('');
+    var avs = rowMembers(it).slice(0, 3).map(avatarHtml).join('');
     var nameHtml = '<div class="name">' + Views.esc(it.name) + (it.archived ? ' 📦' : '') + '</div>';
 
     // ---- archived row: name / list pill / [Open][Unarchive] — the "even" reference layout ----
@@ -316,7 +326,10 @@
       var mcache = pre[6];
       // Warm avatars from the small cache so photos show on the FIRST paint (no REST wait).
       if (mcache && mcache.avatars) {
-        Object.keys(mcache.avatars).forEach(function (id) { MEMBER_AVATARS[id] = mcache.avatars[id]; });
+        Object.keys(mcache.avatars).forEach(function (id) {
+          MEMBER_AVATARS[id] = mcache.avatars[id];
+          if (!BOARD_MEMBERS[id]) BOARD_MEMBERS[id] = { id: id, avatarUrl: mcache.avatars[id] };
+        });
       }
       ALL_LISTS = lists;
       DONE_LIST_ID = Epic.findDoneListId(lists);
@@ -324,7 +337,7 @@
       STATUS_LISTS = lists.filter(function (l) { return statusCfg ? statusCfg.indexOf(l.id) >= 0 : !/подписк/i.test(l.name); });
       // ONE rich cards fetch (client-cached, fast) — no second pass. Pass childIds so
       // computeStats doesn't re-read pluginData.
-      return t.cards('id', 'name', 'idList', 'closed', 'url', 'due', 'dueComplete', 'badges', 'members').then(function (active) {
+      return t.cards('id', 'name', 'idList', 'closed', 'url', 'due', 'dueComplete', 'badges', 'members', 'idMembers').then(function (active) {
         var have = {}; active.forEach(function (c) { have[c.id] = 1; });
         var missingIds = childIds.filter(function (id) { return !have[id]; });
         // Resolve missing sub-tasks by id in ONE pass: which are archived (still exist) and
@@ -340,14 +353,19 @@
           }
           return Epic.computeStats(t, cardId, { childIds: childIds, activeCards: active, lists: lists, archivedById: arch }).then(function (s) {
             return safePaint(cardId, s, icon).then(function () {
-              // Refresh the members cache via REST only when it's missing or stale (>30 min);
-              // otherwise avatars already came from the cache above — no per-open REST.
+              // Fetch the full board members map (names + avatars) once per session, and refresh
+              // the avatar cache when stale (>30 min). The full map is what lets row avatars
+              // resolve from idMembers when Trello doesn't expand `members` inline.
               var stale = !mcache || !mcache.ts || (Date.now() - mcache.ts > 1800000);
-              if (stale) {
+              if (stale || !boardMembersLoaded) {
                 t.board('id').then(function (b) { return Epic.refreshMembers(t, b.id); }).then(function (map) {
                   var added = false;
-                  Object.keys(map).forEach(function (id) { if (map[id].avatarUrl && MEMBER_AVATARS[id] !== map[id].avatarUrl) { MEMBER_AVATARS[id] = map[id].avatarUrl; added = true; } });
-                  if (added) safePaint(cardId, s, icon);
+                  Object.keys(map).forEach(function (id) {
+                    BOARD_MEMBERS[id] = map[id];
+                    if (map[id].avatarUrl && MEMBER_AVATARS[id] !== map[id].avatarUrl) { MEMBER_AVATARS[id] = map[id].avatarUrl; added = true; }
+                  });
+                  var wasLoaded = boardMembersLoaded; boardMembersLoaded = true;
+                  if (added || !wasLoaded) safePaint(cardId, s, icon);
                 }).catch(function () {});
               }
             });

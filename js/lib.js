@@ -621,6 +621,9 @@
             due: c.due || null, dueComplete: !!c.dueComplete,
             checkItems: b.checkItems || 0, checkItemsChecked: b.checkItemsChecked || 0,
             members: c.members || [],
+            // Trello sometimes returns idMembers but not expanded `members` inline — keep the
+            // ids so the UI can resolve avatars from the board members map as a fallback.
+            idMembers: c.idMembers || (c.members || []).map(function (m) { return m.id; }),
           });
         });
 
