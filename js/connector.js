@@ -82,9 +82,15 @@
           }
           return Epic.getParent(t, c.id).then(function (p) {
             if (!p) return [];
-            return Promise.all([Epic.getIcon(t, p), t.cards('id', 'name')]).then(function (rr) {
-              var pc = rr[1].filter(function (x) { return x.id === p; })[0];
-              return [{ text: rr[0] + ' ' + (pc ? pc.name : 'Subscription') }];
+            // Show the parent Subscription's (client) name. Read it from the child's OWN
+            // denormalized data — badges can't reliably read another card's pluginData/name.
+            return Epic.getParentBadge(t, c.id).then(function (b) {
+              if (b.name) return [{ text: (b.icon ? b.icon + ' ' : '') + b.name }];
+              // Not denormalized yet — fall back to the client-cached board cards for the name.
+              return t.cards('id', 'name').then(function (cs) {
+                var pc = cs.filter(function (x) { return x.id === p; })[0];
+                return [{ text: (b.icon ? b.icon + ' ' : '') + (pc ? pc.name : 'Subscription') }];
+              }).catch(function () { return [{ text: (b.icon ? b.icon + ' ' : '') + 'Subscription' }]; });
             });
           });
         });
@@ -112,7 +118,7 @@
         return {
           title: 'Duck Epics',
           icon: ICON,
-          content: { type: 'iframe', url: t.signUrl(url('views/section.html?v=73&c=' + c.id)), height: 200 },
+          content: { type: 'iframe', url: t.signUrl(url('views/section.html?v=74&c=' + c.id)), height: 200 },
         };
       });
     },

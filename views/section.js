@@ -10,7 +10,7 @@
  */
 (function () {
   var t = TrelloPowerUp.iframe({ appKey: Epic.APP_KEY, appName: Epic.APP_NAME });
-  var VERSION = 'v73'; // shown in the unlinked view to confirm which connector version is loaded
+  var VERSION = 'v74'; // shown in the unlinked view to confirm which connector version is loaded
   var root;
   var busy = false;
   var LIMIT = 30;
@@ -355,6 +355,22 @@
           }
           return Epic.computeStats(t, cardId, { childIds: childIds, activeCards: active, lists: lists, archivedById: arch }).then(function (s) {
             return safePaint(cardId, s, icon).then(function () {
+              // Backfill the client (this Subscription's) name + icon onto its children, so their
+              // FRONT-of-card badges show the client name instead of the generic "Subscription".
+              // Only when the name/icon changed (tracked by a stamp on the meta) — not every render.
+              var subCard = active.filter(function (c) { return c.id === cardId; })[0];
+              var subName = subCard ? subCard.name : null;
+              if (subName) {
+                var stamp = subName + '|' + icon;
+                Epic.getMeta(t, cardId).then(function (m) {
+                  if (!m || m.role !== 'subscription' || m.childStamp === stamp) return;
+                  var kids = childIds.filter(function (id) { return have[id]; });
+                  Epic.denormChildren(t, kids, subName, icon).then(function () {
+                    m.childStamp = stamp; lastSelfWrite = Date.now();
+                    Epic._cset(t, cardId, 'meta', m).catch(function () {});
+                  });
+                }).catch(function () {});
+              }
               // Fetch the full board members map (names + avatars) once per session, and refresh
               // the avatar cache when stale (>30 min). The full map is what lets row avatars
               // resolve from idMembers when Trello doesn't expand `members` inline.
@@ -859,8 +875,16 @@
       // The parent Subscription is often NOT in t.cards() on a big board — resolve its real
       // name + date/assignees/labels via REST. Never leave the name blank.
       Epic.fetchCardDetail(t, parentId).then(function (d) {
-        if (d) paintChild(cardId, parentId, icon, d.name || name || '(untitled)', d.url || url, d);
-        else paintChild(cardId, parentId, icon, name || '(archived / not loaded)', url, null);
+        var pname = (d && d.name) || name || null;
+        if (d) paintChild(cardId, parentId, icon, pname || '(untitled)', d.url || url, d);
+        else paintChild(cardId, parentId, icon, pname || '(archived / not loaded)', url, null);
+        // Keep this child's denormalized parent info fresh (front badge shows the client name).
+        if (pname) Epic.getParentBadge(t, cardId).then(function (cur) {
+          if (!cur || cur.name !== pname || cur.icon !== icon) {
+            lastSelfWrite = Date.now();
+            Epic._cset(t, cardId, 'parentInfo', { name: pname, icon: icon }).catch(function () {});
+          }
+        }).catch(function () {});
       }).catch(function () { paintChild(cardId, parentId, icon, name || '(archived / not loaded)', url, null); });
     });
   }

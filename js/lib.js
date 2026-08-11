@@ -548,8 +548,37 @@
         }
         return chain
           .then(function () { return Epic._setParentPtr(t, childId, parentId); })
-          .then(function () { return Epic._pushChild(t, parentId, childId); });
+          .then(function () { return Epic._pushChild(t, parentId, childId); })
+          .then(function () { return Epic.denormParent(t, childId, parentId).catch(function () {}); });
       });
+    },
+
+    // Denormalize the parent Subscription's NAME + ICON onto the child card. The child's
+    // front-of-card badge needs to show the client (parent) name, but card-badges run in a
+    // restricted context where reading ANOTHER card's pluginData/name is unreliable (card-id
+    // scope throws; t.cards() may omit it). Reading the child's OWN card data always works, so
+    // we copy the parent's name/icon here (in the section context, where they resolve reliably).
+    denormParent: function (t, childId, parentId) {
+      return Promise.all([
+        t.cards('id', 'name').then(function (cs) { var pc = cs.filter(function (x) { return x.id === parentId; })[0]; return pc ? pc.name : null; }).catch(function () { return null; }),
+        Epic.getIcon(t, parentId).catch(function () { return null; })
+      ]).then(function (r) {
+        if (!r[0] && !r[1]) return;
+        return Epic._cset(t, childId, 'parentInfo', { name: r[0] || null, icon: r[1] || null }).catch(function () {});
+      }).catch(function () {});
+    },
+    // Read the denormalized {name,icon} from the child's OWN card scope (works in the badge context).
+    getParentBadge: function (t, childId) {
+      return Epic._cget(t, childId, 'parentInfo', null).then(function (v) { return v || { name: null, icon: null }; });
+    },
+    // Write the denormalized {name,icon} to MANY children at once (parent-side backfill). Best-effort.
+    denormChildren: function (t, children, name, icon) {
+      var info = { name: name || null, icon: icon || null };
+      var chain = Promise.resolve();
+      (children || []).forEach(function (id) {
+        chain = chain.then(function () { return Epic._cset(t, id, 'parentInfo', info).catch(function () {}); });
+      });
+      return chain;
     },
 
     // Write the child->parent pointer. Prefer the child card's OWN scope, but a JUST-created
@@ -571,6 +600,7 @@
         if (p) chain = chain.then(function () { return Epic._pullChild(t, p, childId); });
         return chain
           .then(function () { return Epic._cremove(t, childId, 'parent'); })
+          .then(function () { return Epic._cremove(t, childId, 'parentInfo'); })
           .then(function () { return Epic._remove(t, key('parent', childId)).catch(function () {}); });
       });
     },
