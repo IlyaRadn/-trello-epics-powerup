@@ -52,6 +52,76 @@
 
   function key(kind, id) { return 'sub:' + kind + ':' + id; }
 
+  // ---------------------------------------------------------------------------
+  // i18n — the UI shows the language of the viewer's Trello by default, and the
+  // user can override it (⚙ → Language) to any language we ship. English is the
+  // built-in baseline (below); every other locale is a small JSON file fetched
+  // from  <base>/messages/<locale>.json  and merged over the baseline. A missing
+  // or failed file falls back to English, so the UI never breaks.
+  // ---------------------------------------------------------------------------
+  var I18N_EN = {
+    loading: 'Loading…', back: 'Back', error: 'Error', save: 'Save',
+    move_to_column: 'Move to column', open_new_tab: 'Open in new tab', unarchive: 'Unarchive',
+    change_date: 'Change date', date: 'date', mark_done: 'Mark as done', mark_not_done: 'Mark as not done',
+    assignee: 'Assignee', edit_link: 'Edit link', add_link: 'Add link', archive_task: 'Archive task',
+    not_linked: 'This card is not linked.', make_subscription: 'Make Subscription',
+    attach_to_subscription: 'Attach to Subscription', working: 'Working…',
+    choose_subscription: 'Choose a Subscription:', search_subscriptions: 'Search subscriptions…',
+    no_matches: 'No matches.', no_subscriptions: 'No Subscriptions on this board yet.', untitled: '(untitled)',
+    no_subtasks: 'No sub-tasks yet — "+ Sub-task" creates one, "🔗 Link" adds an existing card.',
+    done: 'done', btn_new_subtask: '+ Sub-task', btn_existing: '+ Existing', btn_link: '🔗 Link',
+    add_link_hint: 'Add a link (e.g. client site)', unmark: 'Unmark', settings: 'Settings', icon: 'Icon',
+    show_fewer: 'Show fewer children', view_all: 'View all children ({n})', archived_group: '📦 Archived',
+    columns_help: 'Check the status columns — sub-tasks can only be moved into these:',
+    language: 'Language', language_auto: 'Auto (Trello language)',
+    loading_members: 'Loading members…', assignees: 'Assignees', search_by_name: 'Search by name…',
+    no_one_found: 'No one found.', failed_members: 'Failed to load members.',
+    link: 'Link', open_arrow: 'Open', delete: 'Delete', enter_url_first: 'Enter a URL first.',
+    auth_required_create: 'Creating a new card requires a one-time Trello authorization.',
+    authorize: 'Authorize', new_subtask_name: 'New sub-task name', column: 'Column', due_date: 'Due date',
+    search_members: 'Search members…', create: 'Create', opening_trello: 'Opening Trello window…',
+    no_members: 'No members.', creating: 'Creating…', authorize_first: 'Authorize first.',
+    link_existing: 'Link existing cards',
+    link_existing_hint: 'Click a card to add it as a sub-task. Keep adding, then ← Back.',
+    all_columns: 'All columns', sort_new: 'Newest first', sort_act: 'By activity', sort_old: 'Oldest first',
+    sort_name: 'Alphabetical', loading_cards: 'Loading cards…', nothing_found: 'Nothing found.',
+    loading_rest: 'Loading the rest of the cards…', show_more: 'Show more ({n})',
+    added_count: '✓ Added {n} — back when done', subscription_icon: 'Subscription icon:',
+    parent_subscription: 'Parent Subscription:', subscription: 'Subscription', detach: 'Detach',
+    archived_not_loaded: '(archived / not loaded)', unmark_subscription: 'Unmark Subscription',
+    add_subtask: 'Add Sub-task', change_parent: 'Change parent', choose_subscription_title: 'Choose Subscription',
+    authorize_duck: 'Authorize Duck Epics', subtasks: 'Sub-tasks',
+  };
+  // Languages offered in the ⚙ → Language picker (first entry = follow Trello).
+  var I18N_LOCALES = [
+    { code: '', name: 'Auto (Trello language)' }, { code: 'en', name: 'English' },
+    { code: 'ru', name: 'Русский' }, { code: 'es', name: 'Español' }, { code: 'de', name: 'Deutsch' },
+    { code: 'fr', name: 'Français' }, { code: 'pt-BR', name: 'Português' }, { code: 'it', name: 'Italiano' },
+    { code: 'nl', name: 'Nederlands' }, { code: 'pl', name: 'Polski' }, { code: 'uk', name: 'Українська' },
+    { code: 'sv', name: 'Svenska' }, { code: 'nb', name: 'Norsk' }, { code: 'fi', name: 'Suomi' },
+    { code: 'cs', name: 'Čeština' }, { code: 'hu', name: 'Magyar' }, { code: 'tr', name: 'Türkçe' },
+    { code: 'ja', name: '日本語' }, { code: 'th', name: 'ไทย' }, { code: 'vi', name: 'Tiếng Việt' },
+    { code: 'zh-Hans', name: '简体中文' }, { code: 'zh-Hant', name: '繁體中文' },
+  ];
+  var I18N_MSG = null;      // merged dict for the active non-English locale (null ⇒ English baseline)
+  var I18N_LOC = 'en';      // active resolved locale code
+  var I18N_LOADED = null;   // locale whose messages are currently in I18N_MSG
+  function i18nBase() {
+    var s = document.querySelector('script[src*="lib.js"]');
+    return s ? s.src.replace(/js\/lib\.js.*$/, '') : './';
+  }
+  // Map any Trello / browser locale string to one of the codes we ship (else 'en').
+  function normLoc(l) {
+    l = String(l || '').trim(); if (!l) return 'en';
+    var low = l.toLowerCase();
+    if (low.indexOf('zh') === 0) return (/hant|tw|hk|mo/.test(low)) ? 'zh-Hant' : 'zh-Hans';
+    if (low.indexOf('pt') === 0) return 'pt-BR';
+    if (/^(nb|nn|no)/.test(low)) return 'nb';
+    var base = low.split(/[-_]/)[0];
+    var ok = { en: 1, ru: 1, es: 1, de: 1, fr: 1, it: 1, nl: 1, pl: 1, uk: 1, sv: 1, fi: 1, cs: 1, hu: 1, tr: 1, ja: 1, th: 1, vi: 1 };
+    return ok[base] ? base : 'en';
+  }
+
   var Epic = {
     DONE_LIST_RE: DONE_LIST_RE,
     ICON_PALETTE: ICON_PALETTE,
@@ -59,6 +129,57 @@
     // Trello API key from the Power-Up admin (public value, embedded in client).
     APP_KEY: 'ffdbea7aa839ec372b926441255ca3d3',
     APP_NAME: 'Duck Epics',
+
+    // ---------- i18n ----------
+    LOCALES: I18N_LOCALES,
+    // Localized string for a key (English fallback, then the raw key).
+    L: function (k) { return (I18N_MSG && I18N_MSG[k]) || I18N_EN[k] || k; },
+    // Same, with {placeholder} substitution: fmt('view_all', { n: 5 }).
+    fmt: function (k, params) {
+      return String(this.L(k)).replace(/\{(\w+)\}/g, function (_, p) {
+        return (params && params[p] != null) ? params[p] : '';
+      });
+    },
+    activeLocale: function () { return I18N_LOC; },
+    // The user's saved override ('' / undefined = follow Trello).
+    getUiPref: function (t) {
+      return Promise.resolve().then(function () { return t.get('member', 'private', 'duckUiLocale'); }).catch(function () { return null; });
+    },
+    // Resolve the locale to use: saved override, else Trello UI locale, else browser.
+    resolveLocale: function (t) {
+      return this.getUiPref(t).then(function (pref) {
+        if (pref) return normLoc(pref);
+        var auto = '';
+        try { var ctx = t.getContext && t.getContext(); if (ctx && ctx.locale) auto = ctx.locale; } catch (e) {}
+        if (!auto) { try { auto = navigator.language || ''; } catch (e) {} }
+        return normLoc(auto);
+      });
+    },
+    // Load (and cache) the message dict for the resolved locale. Idempotent/cheap.
+    loadMessages: function (t) {
+      var self = this;
+      return self.resolveLocale(t).then(function (loc) {
+        I18N_LOC = loc;
+        if (loc === 'en') { I18N_MSG = null; I18N_LOADED = 'en'; return 'en'; }
+        if (I18N_LOADED === loc && I18N_MSG) return loc;
+        return fetch(i18nBase() + 'messages/' + loc + '.json', { headers: { Accept: 'application/json' } })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (j) {
+            if (j) { I18N_MSG = j; I18N_LOADED = loc; }
+            else { I18N_MSG = null; I18N_LOADED = 'en'; I18N_LOC = 'en'; }
+            return I18N_LOC;
+          })
+          .catch(function () { I18N_MSG = null; I18N_LOADED = 'en'; I18N_LOC = 'en'; return 'en'; });
+      });
+    },
+    // Save (or clear) the language override, then reload the active dict.
+    setUiLocale: function (t, loc) {
+      var self = this;
+      var p = loc
+        ? Promise.resolve().then(function () { return t.set('member', 'private', 'duckUiLocale', loc); })
+        : Promise.resolve().then(function () { return t.remove('member', 'private', 'duckUiLocale'); });
+      return p.catch(function () {}).then(function () { I18N_LOADED = null; return self.loadMessages(t); });
+    },
 
     // ---------- token (our own OAuth flow, stored member-private) ----------
     // Per-sub-task custom link. SHARDED per parent Subscription (`sub:links:<parentId>`)

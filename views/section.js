@@ -10,7 +10,9 @@
  */
 (function () {
   var t = TrelloPowerUp.iframe({ appKey: Epic.APP_KEY, appName: Epic.APP_NAME });
-  var VERSION = 'v74'; // shown in the unlinked view to confirm which connector version is loaded
+  var VERSION = 'v75'; // shown in the unlinked view to confirm which connector version is loaded
+  function L(k) { return Epic.L(k); }              // localized string
+  function LF(k, p) { return Epic.fmt(k, p); }     // localized string with {placeholders}
   var root;
   var busy = false;
   var LIMIT = 30;
@@ -139,7 +141,7 @@
     if (it.listId && !STATUS_LISTS.some(function (l) { return l.id === it.listId; })) {
       opts = '<option value="' + it.listId + '" selected>' + Views.esc(it.list) + '</option>' + opts;
     }
-    return '<select class="move' + (it.done ? ' done' : '') + '" data-id="' + it.id + '" title="Move to column">' + opts + '</select>';
+    return '<select class="move' + (it.done ? ' done' : '') + '" data-id="' + it.id + '" title="' + L('move_to_column') + '">' + opts + '</select>';
   }
   // Resolve a row's assignees to member objects. Prefer Trello's expanded `members`; if that's
   // empty (Trello increasingly returns only idMembers), map ids through the board members map —
@@ -162,31 +164,31 @@
       return '<div class="sub archived" data-id="' + it.id + '">' + nameHtml +
         '<div class="meta"><span class="chips">' + achips + '</span></div>' +
         '<div class="actions" style="margin-top:6px">' +
-        '<button class="btn" data-open="' + Views.esc(it.url || '') + '">Open in new tab</button>' +
-        '<button class="btn" data-unarch="' + it.id + '">Unarchive</button></div></div>';
+        '<button class="btn" data-open="' + Views.esc(it.url || '') + '">' + L('open_new_tab') + '</button>' +
+        '<button class="btn" data-unarch="' + it.id + '">' + L('unarchive') + '</button></div></div>';
     }
 
     // ---- active row: SAME vertical scheme as archive ----
     // line 1: ✓ done-toggle + name (+ avatar pinned right)   line 2: chips   line 3: status
-    var dueLabel = it.due ? '🕐 ' + fmtDate(it.due) : '📅 date';
+    var dueLabel = it.due ? '🕐 ' + fmtDate(it.due) : '📅 ' + L('date');
     // A transparent native date input overlays the pill; its calendar-picker-indicator
     // is stretched to fill it (see CSS), so a direct click on the pill opens the native
     // date picker — works inside Trello's cross-origin iframe where showPicker() is blocked.
     var dueVal = isoToInputVal(it.due);
-    var chips = '<span class="pill due-edit' + (it.dueComplete ? ' done' : '') + dueClass(it) + (it.due ? '' : ' empty') + '" title="Change date">' +
+    var chips = '<span class="pill due-edit' + (it.dueComplete ? ' done' : '') + dueClass(it) + (it.due ? '' : ' empty') + '" title="' + L('change_date') + '">' +
       dueLabel +
       '<input type="date" class="due-ovl" data-due-id="' + it.id + '" data-due="' + (it.due || '') + '"' + (dueVal ? ' value="' + dueVal + '"' : '') + '></span>';
     if (it.checkItems) chips += '<span class="pill ' + (it.checkItemsChecked === it.checkItems ? 'done' : '') + '">☑ ' + it.checkItemsChecked + '/' + it.checkItems + '</span>';
 
-    var check = '<span class="check' + (it.done ? ' on' : '') + '" data-id="' + it.id + '" title="' + (it.done ? 'Mark as not done' : 'Mark as done') + '"></span>';
-    var avsCell = '<span class="avs avs-edit" data-id="' + it.id + '" title="Assignee">' + (avs || '<span class="av-add">+</span>') + '</span>';
+    var check = '<span class="check' + (it.done ? ' on' : '') + '" data-id="' + it.id + '" title="' + (it.done ? L('mark_not_done') : L('mark_done')) + '"></span>';
+    var avsCell = '<span class="avs avs-edit" data-id="' + it.id + '" title="' + L('assignee') + '">' + (avs || '<span class="av-add">+</span>') + '</span>';
     var link = LINKS[it.id] || '';
     var linkBtns = link
       ? '<button class="linkbtn has" data-openlink="' + Views.esc(link) + '" title="' + Views.esc(link) + '">🔗</button>' +
-        '<button class="linkbtn" data-editlink="' + it.id + '" title="Edit link">✎</button>'
-      : '<button class="linkbtn" data-editlink="' + it.id + '" title="Add link">🔗</button>';
-    var openBtn = it.url ? '<button class="linkbtn" data-open="' + Views.esc(it.url) + '" title="Open in new tab">↗</button>' : '';
-    var archBtn = '<button class="linkbtn" data-arch="' + it.id + '" title="Archive task">📦</button>';
+        '<button class="linkbtn" data-editlink="' + it.id + '" title="' + L('edit_link') + '">✎</button>'
+      : '<button class="linkbtn" data-editlink="' + it.id + '" title="' + L('add_link') + '">🔗</button>';
+    var openBtn = it.url ? '<button class="linkbtn" data-open="' + Views.esc(it.url) + '" title="' + L('open_new_tab') + '">↗</button>' : '';
+    var archBtn = '<button class="linkbtn" data-arch="' + it.id + '" title="' + L('archive_task') + '">📦</button>';
     var inner =
       '<div class="toprow">' + check + nameHtml + linkBtns + openBtn + archBtn + avsCell + '</div>' +
       '<div class="meta"><span class="chips">' + chips + '</span></div>' +
@@ -237,7 +239,7 @@
   function render() {
     busy = false;
     root = document.getElementById('root');
-    if (!painted) root.innerHTML = '<p class="muted small">Loading…</p>';
+    if (!painted) root.innerHTML = '<p class="muted small">' + L('loading') + '</p>';
     var cid = ctxCardId();
     var cardP = cid ? Promise.resolve(cid) : t.card('id').then(function (c) { return c.id; });
     return cardP.then(function (cardId) {
@@ -249,27 +251,27 @@
         return renderNone(cardId);
       });
     }).then(function () { painted = true; fit(); }).catch(function (e) {
-      root.innerHTML = '<p class="small" style="color:#bf2600">Error: ' + Views.esc(e && e.message) + '</p>';
+      root.innerHTML = '<p class="small" style="color:#bf2600">' + L('error') + ': ' + Views.esc(e && e.message) + '</p>';
       fit();
     });
   }
 
-  function backBar() { return '<div class="actions" style="margin-bottom:6px"><button class="btn" id="cx">← Back</button></div>'; }
+  function backBar() { return '<div class="actions" style="margin-bottom:6px"><button class="btn" id="cx">← ' + L('back') + '</button></div>'; }
   function wireBack() { var b = document.getElementById('cx'); if (b) b.addEventListener('click', render); }
 
   // ---------- unlinked ----------
   function renderNone(cardId) {
     root.innerHTML =
-      '<p class="muted small">This card is not linked.</p>' +
+      '<p class="muted small">' + L('not_linked') + '</p>' +
       '<div class="actions">' +
-      '<button class="btn primary" id="mk">Make Subscription</button>' +
-      '<button class="btn" id="at">Attach to Subscription</button></div>' +
+      '<button class="btn primary" id="mk">' + L('make_subscription') + '</button>' +
+      '<button class="btn" id="at">' + L('attach_to_subscription') + '</button></div>' +
       '<p class="small muted" id="mkmsg" style="margin-top:6px">' + VERSION + '</p>';
     var mk = document.getElementById('mk');
     mk.addEventListener('click', function () {
-      mk.disabled = true; document.getElementById('mkmsg').textContent = 'Working… (' + VERSION + ')';
+      mk.disabled = true; document.getElementById('mkmsg').textContent = L('working') + ' (' + VERSION + ')';
       Epic.makeSubscription(t, cardId).then(render)
-        .catch(function (e) { mk.disabled = false; document.getElementById('mkmsg').textContent = 'Error: ' + (e && e.message || e) + ' (' + VERSION + ')'; });
+        .catch(function (e) { mk.disabled = false; document.getElementById('mkmsg').textContent = L('error') + ': ' + (e && e.message || e) + ' (' + VERSION + ')'; });
     });
     document.getElementById('at').addEventListener('click', function () { showAttach(cardId); });
     debugFooter();
@@ -291,15 +293,15 @@
         var list = subs.filter(function (id) { return !deadSet[id]; });
         list.sort(function (a, b) { return (nameOf[a] || '￿').localeCompare(nameOf[b] || '￿'); });
         var itemsHtml = list.map(function (id) {
-          var nm = nameOf[id] || '(untitled)';
+          var nm = nameOf[id] || L('untitled');
           return '<button class="item" data-id="' + id + '" data-name="' + Views.esc(nm.toLowerCase()) + '"><span class="name">' + Views.esc(nm) + '</span></button>';
         }).join('');
         root.innerHTML = backBar() + (list.length
-          ? '<p class="small muted">Choose a Subscription:</p>' +
-            '<input type="text" id="subsearch" placeholder="Search subscriptions…" autocomplete="off" style="margin-bottom:8px">' +
+          ? '<p class="small muted">' + L('choose_subscription') + '</p>' +
+            '<input type="text" id="subsearch" placeholder="' + L('search_subscriptions') + '" autocomplete="off" style="margin-bottom:8px">' +
             '<div class="list" id="sublist">' + itemsHtml + '</div>' +
-            '<p class="muted small" id="nomatch" style="display:none">No matches.</p>'
-          : '<p class="muted small">No Subscriptions on this board yet.</p>');
+            '<p class="muted small" id="nomatch" style="display:none">' + L('no_matches') + '</p>'
+          : '<p class="muted small">' + L('no_subscriptions') + '</p>');
         wireBack();
         var si = document.getElementById('subsearch');
         if (si) si.addEventListener('input', function () {
@@ -409,7 +411,7 @@
     var pct = s.total ? Math.round(100 * s.done / s.total) : 0;
     var body;
     if (!s.total) {
-      body = '<p class="muted small">No sub-tasks yet — "+ Sub-task" creates one, "🔗 Link" adds an existing card.</p>';
+      body = '<p class="muted small">' + L('no_subtasks') + '</p>';
     } else {
       // Group active sub-tasks by column (status); archived go to their own group.
       var groups = {}, order = [], archived = [];
@@ -437,24 +439,24 @@
       }).join('');
       if (activeCount > CAP) {
         body += '<div class="actions" style="margin-top:10px"><button class="btn" id="toggleList">' +
-          (expandedList ? 'Show fewer children' : 'View all children (' + activeCount + ')') + '</button></div>';
+          (expandedList ? L('show_fewer') : LF('view_all', { n: activeCount })) + '</button></div>';
       }
       if (archived.length) {
         var ac = !!collapsedGroups.archived;
-        body += '<div class="grp">' + grpHead('archived', '📦 Archived', archived.length, ac) +
+        body += '<div class="grp">' + grpHead('archived', L('archived_group'), archived.length, ac) +
           (ac ? '' : '<div class="list">' + archived.map(subRow).join('') + '</div>') + '</div>';
       }
     }
     root.innerHTML =
       '<div class="progress"><b style="font-size:16px">' + icon + '</b>' +
       '<div class="bar"><i style="width:' + pct + '%"></i></div>' +
-      '<span class="small muted">' + s.done + '/' + s.total + ' done</span></div>' +
-      '<div class="toolbar"><button class="iconbtn" id="ic" title="Icon">' + icon + '</button>' +
-      '<button class="btn primary" id="new">+ Sub-task</button>' +
-      '<button class="btn" id="attach">+ Existing</button>' +
-      '<button class="btn' + (LINKS[cardId] ? ' has-link' : '') + '" id="link" title="' + (LINKS[cardId] ? Views.esc(LINKS[cardId]) : 'Add a link (e.g. client site)') + '">🔗 Link</button>' +
-      '<button class="btn" id="un">Unmark</button>' +
-      '<button class="iconbtn" id="cols" title="Configure columns">⚙</button></div>' + body;
+      '<span class="small muted">' + s.done + '/' + s.total + ' ' + L('done') + '</span></div>' +
+      '<div class="toolbar"><button class="iconbtn" id="ic" title="' + L('icon') + '">' + icon + '</button>' +
+      '<button class="btn primary" id="new">' + L('btn_new_subtask') + '</button>' +
+      '<button class="btn" id="attach">' + L('btn_existing') + '</button>' +
+      '<button class="btn' + (LINKS[cardId] ? ' has-link' : '') + '" id="link" title="' + (LINKS[cardId] ? Views.esc(LINKS[cardId]) : L('add_link_hint')) + '">' + L('btn_link') + '</button>' +
+      '<button class="btn" id="un">' + L('unmark') + '</button>' +
+      '<button class="iconbtn" id="cols" title="' + L('settings') + '">⚙</button></div>' + body;
 
     // Collapse / expand a column group by clicking its header.
     root.querySelectorAll('.grp-h[data-key]').forEach(function (h) {
@@ -479,7 +481,7 @@
         e.stopPropagation();
         b.disabled = true; b.textContent = '…';
         Epic.unarchiveCard(t, b.getAttribute('data-unarch')).then(render)
-          .catch(function () { b.disabled = false; b.textContent = 'Unarchive'; });
+          .catch(function () { b.disabled = false; b.textContent = L('unarchive'); });
       });
     });
     // Archive a sub-task straight from its row (📦). Optimistic: drop the row now, PUT in
@@ -582,17 +584,30 @@
     var rows = ALL_LISTS.map(function (l) {
       return '<label><input type="checkbox" value="' + l.id + '"' + (current[l.id] ? ' checked' : '') + '> ' + Views.esc(l.name) + '</label>';
     }).join('');
-    root.innerHTML = backBar() +
-      '<p class="small muted">Check the status columns — sub-tasks can only be moved into these:</p>' +
-      '<div class="cols">' + rows + '</div>' +
-      '<div class="actions"><button class="btn primary" id="save">Save</button></div>';
-    wireBack();
-    document.getElementById('save').addEventListener('click', function () {
-      var ids = [];
-      root.querySelectorAll('.cols input:checked').forEach(function (c) { ids.push(c.value); });
-      Epic.setStatusLists(t, ids).then(render);
+    Epic.getUiPref(t).then(function (pref) {
+      var sel = pref || '';
+      var langOpts = Epic.LOCALES.map(function (o) {
+        var label = (o.code === '') ? L('language_auto') : o.name;
+        return '<option value="' + o.code + '"' + (o.code === sel ? ' selected' : '') + '>' + Views.esc(label) + '</option>';
+      }).join('');
+      root.innerHTML = backBar() +
+        '<label>' + L('language') + '</label>' +
+        '<select id="lang" style="margin-bottom:12px">' + langOpts + '</select>' +
+        '<p class="small muted">' + L('columns_help') + '</p>' +
+        '<div class="cols">' + rows + '</div>' +
+        '<div class="actions"><button class="btn primary" id="save">' + L('save') + '</button></div>';
+      wireBack();
+      // Language: apply immediately (reload dict → full re-render in the new language).
+      document.getElementById('lang').addEventListener('change', function (e) {
+        Epic.setUiLocale(t, e.target.value).then(render);
+      });
+      document.getElementById('save').addEventListener('click', function () {
+        var ids = [];
+        root.querySelectorAll('.cols input:checked').forEach(function (c) { ids.push(c.value); });
+        Epic.setStatusLists(t, ids).then(render);
+      });
+      fit();
     });
-    fit();
   }
 
   // Inline member picker: toggle board members on a sub-task (assign/unassign).
@@ -602,14 +617,14 @@
     if (lastPaint && lastPaint.s) lastPaint.s.items.forEach(function (it) { if (it.id === cardId) item = it; });
     var assigned = {}; (item && item.members ? item.members : []).forEach(function (m) { assigned[m.id] = 1; });
     var changed = false;
-    root.innerHTML = backBar() + '<p class="muted small">Loading members…</p>';
+    root.innerHTML = backBar() + '<p class="muted small">' + L('loading_members') + '</p>';
     document.getElementById('cx').addEventListener('click', function () { changed ? render() : backToList(cardId); });
     membersReady().then(function (map) {
       var members = Object.keys(map).map(function (id) { return map[id]; });
       members.sort(function (a, b2) { return (a.fullName || a.username || '').localeCompare(b2.fullName || b2.username || ''); });
       root.innerHTML = backBar() +
-        '<label>Assignees</label>' +
-        '<input type="text" id="mflt" placeholder="Search by name…" autocomplete="off">' +
+        '<label>' + L('assignees') + '</label>' +
+        '<input type="text" id="mflt" placeholder="' + L('search_by_name') + '" autocomplete="off">' +
         '<div class="list" id="mlist"></div>';
       document.getElementById('cx').addEventListener('click', function () { changed ? render() : backToList(cardId); });
       var flt = document.getElementById('mflt');
@@ -621,7 +636,7 @@
           return '<button class="item member' + (assigned[m.id] ? ' selected' : '') + '" data-id="' + m.id + '">' +
             avatarHtml(m) + '<span class="name">' + Views.esc(m.fullName || m.username || m.id) + '</span>' +
             '<span class="pill done mchk"' + (assigned[m.id] ? '' : ' style="visibility:hidden"') + '>✓</span></button>';
-        }).join('') || '<p class="muted small">No one found.</p>';
+        }).join('') || '<p class="muted small">' + L('no_one_found') + '</p>';
         root.querySelectorAll('.member').forEach(function (el) {
           el.addEventListener('click', function () {
             var id = el.getAttribute('data-id');
@@ -641,7 +656,7 @@
       flt.focus();
       paintList();
     }).catch(function () {
-      root.innerHTML = backBar() + '<p class="small" style="color:#bf2600">Failed to load members.</p>';
+      root.innerHTML = backBar() + '<p class="small" style="color:#bf2600">' + L('failed_members') + '</p>';
       document.getElementById('cx').addEventListener('click', function () { render(); });
       fit();
     });
@@ -660,12 +675,12 @@
     busy = true;
     var cur = LINKS[cardId] || '';
     root.innerHTML = backBar() +
-      '<label>Link</label>' +
+      '<label>' + L('link') + '</label>' +
       '<input type="text" id="lnk" placeholder="https://…" autocomplete="off">' +
       '<div class="actions" style="margin-top:10px">' +
-      '<button class="btn primary" id="lopen">Open ↗</button>' +
-      '<button class="btn" id="lsave">Save</button>' +
-      (cur ? '<button class="btn danger" id="ldel">Delete</button>' : '') +
+      '<button class="btn primary" id="lopen">' + L('open_arrow') + ' ↗</button>' +
+      '<button class="btn" id="lsave">' + L('save') + '</button>' +
+      (cur ? '<button class="btn danger" id="ldel">' + L('delete') + '</button>' : '') +
       '</div><p class="small muted" id="lmsg"></p>';
     wireBack();
     var inp = document.getElementById('lnk');
@@ -680,7 +695,7 @@
     }
     document.getElementById('lopen').addEventListener('click', function () {
       var v = normalizeUrl(inp.value);
-      if (!v) { document.getElementById('lmsg').textContent = 'Enter a URL first.'; return; }
+      if (!v) { document.getElementById('lmsg').textContent = L('enter_url_first'); return; }
       saveAnd(v, function () { window.open(v, '_blank'); backToList(cardId); });
     });
     document.getElementById('lsave').addEventListener('click', function () {
@@ -700,20 +715,20 @@
       var opts = lists.map(function (l) { return '<option value="' + l.id + '"' + (l.id === cur.idList ? ' selected' : '') + '>' + Views.esc(l.name) + '</option>'; }).join('');
       root.innerHTML = backBar() +
         (isAuthed ? '' :
-          '<p class="small" style="color:#974f0c;margin:0 0 6px">Creating a new card requires a one-time Trello authorization.</p>' +
-          '<div class="actions" style="margin-bottom:8px"><button class="btn primary" id="auth">Authorize</button></div>') +
-        '<label>New sub-task name</label><input type="text" id="nm" placeholder="SUB - ..." autocomplete="off">' +
-        '<label>Column</label><select id="ls">' + opts + '</select>' +
-        '<label>Due date</label><input type="date" id="due">' +
-        '<label>Link</label><input type="text" id="lk" placeholder="https://…" autocomplete="off">' +
-        '<label>Assignees</label>' +
-        '<input type="text" id="memflt" placeholder="Search members…" autocomplete="off"' + (isAuthed ? '' : ' disabled') + '>' +
+          '<p class="small" style="color:#974f0c;margin:0 0 6px">' + L('auth_required_create') + '</p>' +
+          '<div class="actions" style="margin-bottom:8px"><button class="btn primary" id="auth">' + L('authorize') + '</button></div>') +
+        '<label>' + L('new_subtask_name') + '</label><input type="text" id="nm" placeholder="SUB - ..." autocomplete="off">' +
+        '<label>' + L('column') + '</label><select id="ls">' + opts + '</select>' +
+        '<label>' + L('due_date') + '</label><input type="date" id="due">' +
+        '<label>' + L('link') + '</label><input type="text" id="lk" placeholder="https://…" autocomplete="off">' +
+        '<label>' + L('assignees') + '</label>' +
+        '<input type="text" id="memflt" placeholder="' + L('search_members') + '" autocomplete="off"' + (isAuthed ? '' : ' disabled') + '>' +
         '<div class="list memlist" id="mem"></div>' +
-        '<div class="actions"><button class="btn primary" id="cr" disabled>Create</button></div>' +
+        '<div class="actions"><button class="btn primary" id="cr" disabled>' + L('create') + '</button></div>' +
         '<p class="small muted" id="msg"></p>';
       wireBack();
       var au = document.getElementById('auth');
-      if (au) au.addEventListener('click', function () { au.textContent = 'Opening Trello window…'; au.disabled = true; doAuthorize(function () { showCreateForm(cardId); }); });
+      if (au) au.addEventListener('click', function () { au.textContent = L('opening_trello'); au.disabled = true; doAuthorize(function () { showCreateForm(cardId); }); });
       var nm = document.getElementById('nm'), cr = document.getElementById('cr');
       nm.addEventListener('input', function () { cr.disabled = !nm.value.trim() || !isAuthed; });
       if (isAuthed) nm.focus();
@@ -727,7 +742,7 @@
           return '<button class="item member' + (selected[m.id] ? ' selected' : '') + '" data-id="' + m.id + '">' +
             avatarHtml(m) + '<span class="name">' + Views.esc(m.fullName || m.username || m.id) + '</span>' +
             '<span class="pill done mchk"' + (selected[m.id] ? '' : ' style="visibility:hidden"') + '>✓</span></button>';
-        }).join('') || '<p class="muted small" style="padding:4px 2px">No members.</p>';
+        }).join('') || '<p class="muted small" style="padding:4px 2px">' + L('no_members') + '</p>';
         document.getElementById('mem').querySelectorAll('.member').forEach(function (el) {
           el.addEventListener('click', function () {
             var id = el.getAttribute('data-id');
@@ -748,7 +763,7 @@
       }
 
       cr.addEventListener('click', function () {
-        cr.disabled = true; document.getElementById('msg').textContent = 'Creating…';
+        cr.disabled = true; document.getElementById('msg').textContent = L('creating');
         Epic.createSubtask(t, {
           name: nm.value.trim(),
           idList: document.getElementById('ls').value,
@@ -757,7 +772,7 @@
           link: normalizeUrl(document.getElementById('lk').value),
           idMembers: Object.keys(selected),
         }).then(render)
-          .catch(function (e) { document.getElementById('msg').textContent = (e.message === 'auth') ? 'Authorize first.' : 'Error: ' + e.message; cr.disabled = false; });
+          .catch(function (e) { document.getElementById('msg').textContent = (e.message === 'auth') ? L('authorize_first') : L('error') + ': ' + e.message; cr.disabled = false; });
       });
       fit();
     });
@@ -773,19 +788,19 @@
 
     // Panel shell is painted immediately; cards fill in without blocking.
     root.innerHTML = backBar() +
-      '<label>Link existing cards</label>' +
-      '<p class="small muted" style="margin:-2px 0 6px">Click a card to add it as a sub-task. Keep adding, then ← Back.</p>' +
-      '<input type="text" id="flt" placeholder="Search by name…" autocomplete="off">' +
+      '<label>' + L('link_existing') + '</label>' +
+      '<p class="small muted" style="margin:-2px 0 6px">' + L('link_existing_hint') + '</p>' +
+      '<input type="text" id="flt" placeholder="' + L('search_by_name') + '" autocomplete="off">' +
       '<div class="filters">' +
-      '<select id="colf"><option value="">All columns</option></select>' +
+      '<select id="colf"><option value="">' + L('all_columns') + '</option></select>' +
       '<select id="sortf">' +
-      '<option value="new">Newest first</option>' +
-      '<option value="act">By activity</option>' +
-      '<option value="old">Oldest first</option>' +
-      '<option value="name">Alphabetical</option>' +
+      '<option value="new">' + L('sort_new') + '</option>' +
+      '<option value="act">' + L('sort_act') + '</option>' +
+      '<option value="old">' + L('sort_old') + '</option>' +
+      '<option value="name">' + L('sort_name') + '</option>' +
       '</select></div>' +
       '<p class="small" id="lnkmsg" style="color:var(--green);min-height:16px;margin:2px 0"></p>' +
-      '<div class="list" id="cand"><p class="muted small">Loading cards…</p></div>';
+      '<div class="list" id="cand"><p class="muted small">' + L('loading_cards') + '</p></div>';
     wireBack();
     var flt = document.getElementById('flt');
     var colf = document.getElementById('colf');
@@ -794,11 +809,11 @@
     function paint() {
       var html = current.slice(0, shownN).map(function (c) {
         return '<button class="item" data-id="' + c.id + '"><span class="name">' + Views.esc(c.name) + '</span><span class="pill">' + Views.esc(listName[c.idList] || '') + '</span></button>';
-      }).join('') || '<p class="muted small">' + (loadedFull ? 'Nothing found.' : 'Loading cards…') + '</p>';
+      }).join('') || '<p class="muted small">' + (loadedFull ? L('nothing_found') : L('loading_cards')) + '</p>';
       if (current.length > shownN) {
-        html += '<div class="actions" style="margin-top:8px"><button class="btn" id="more">Show more (' + (current.length - shownN) + ')</button></div>';
+        html += '<div class="actions" style="margin-top:8px"><button class="btn" id="more">' + LF('show_more', { n: current.length - shownN }) + '</button></div>';
       }
-      if (!loadedFull) html += '<p class="small muted" style="margin-top:6px">Loading the rest of the cards…</p>';
+      if (!loadedFull) html += '<p class="small muted" style="margin-top:6px">' + L('loading_rest') + '</p>';
       document.getElementById('cand').innerHTML = html;
       root.querySelectorAll('#cand .item').forEach(function (el) {
         el.addEventListener('click', function () {
@@ -809,7 +824,7 @@
             added++;
             allCandidates = allCandidates.filter(function (c) { return c.id !== id; });
             current = current.filter(function (c) { return c.id !== id; });
-            var msg = document.getElementById('lnkmsg'); if (msg) msg.textContent = '✓ Added ' + added + ' — back when done';
+            var msg = document.getElementById('lnkmsg'); if (msg) msg.textContent = LF('added_count', { n: added });
             paint();
           }).catch(function () { el.disabled = false; el.style.opacity = ''; });
         });
@@ -843,7 +858,7 @@
     Promise.all([t.lists('id', 'name'), Epic.getChildren(t, parentId), t.cards('id', 'name', 'idList', 'dateLastActivity')]).then(function (r) {
       r[0].forEach(function (l) { listName[l.id] = l.name; });
       // Populate the column filter with the board's lists.
-      colf.innerHTML = '<option value="">All columns</option>' + r[0].map(function (l) { return '<option value="' + l.id + '">' + Views.esc(l.name) + '</option>'; }).join('');
+      colf.innerHTML = '<option value="">' + L('all_columns') + '</option>' + r[0].map(function (l) { return '<option value="' + l.id + '">' + Views.esc(l.name) + '</option>'; }).join('');
       r[1].forEach(function (id) { taken[id] = 1; }); taken[parentId] = 1;
       rebuild(r[2] || []);
       // Stage 2 (background): full board via REST → merge in, keeping the search box focus.
@@ -857,7 +872,7 @@
   function showIconPicker(cardId) {
     busy = true;
     var grid = Epic.ICON_PALETTE.map(function (e) { return '<button data-e="' + e + '">' + e + '</button>'; }).join('');
-    root.innerHTML = backBar() + '<p class="small muted">Subscription icon:</p><div class="grid">' + grid + '</div>';
+    root.innerHTML = backBar() + '<p class="small muted">' + L('subscription_icon') + '</p><div class="grid">' + grid + '</div>';
     wireBack();
     root.querySelectorAll('.grid button').forEach(function (b) {
       b.addEventListener('click', function () { Epic.setIcon(t, cardId, b.getAttribute('data-e')).then(render); });
@@ -871,13 +886,13 @@
       var icon = r[0], cards = r[1];
       var p = cards.filter(function (x) { return x.id === parentId; })[0];
       var name = (p && p.name) || '', url = (p && p.url) || '';
-      paintChild(cardId, parentId, icon, name || 'Loading…', url, null); // fast paint
+      paintChild(cardId, parentId, icon, name || L('loading'), url, null); // fast paint
       // The parent Subscription is often NOT in t.cards() on a big board — resolve its real
       // name + date/assignees/labels via REST. Never leave the name blank.
       Epic.fetchCardDetail(t, parentId).then(function (d) {
         var pname = (d && d.name) || name || null;
-        if (d) paintChild(cardId, parentId, icon, pname || '(untitled)', d.url || url, d);
-        else paintChild(cardId, parentId, icon, pname || '(archived / not loaded)', url, null);
+        if (d) paintChild(cardId, parentId, icon, pname || L('untitled'), d.url || url, d);
+        else paintChild(cardId, parentId, icon, pname || L('archived_not_loaded'), url, null);
         // Keep this child's denormalized parent info fresh (front badge shows the client name).
         if (pname) Epic.getParentBadge(t, cardId).then(function (cur) {
           if (!cur || cur.name !== pname || cur.icon !== icon) {
@@ -885,7 +900,7 @@
             Epic._cset(t, cardId, 'parentInfo', { name: pname, icon: icon }).catch(function () {});
           }
         }).catch(function () {});
-      }).catch(function () { paintChild(cardId, parentId, icon, name || '(archived / not loaded)', url, null); });
+      }).catch(function () { paintChild(cardId, parentId, icon, name || L('archived_not_loaded'), url, null); });
     });
   }
 
@@ -901,12 +916,12 @@
       if (chips || avs) extra = '<div class="childmeta">' + chips + (avs ? '<span class="avs">' + avs + '</span>' : '') + '</div>';
     }
     root.innerHTML =
-      '<p class="small muted">Parent Subscription:</p>' +
+      '<p class="small muted">' + L('parent_subscription') + '</p>' +
       '<button class="item" data-url="' + Views.esc(url) + '"><span>' + icon + '</span>' +
       '<span class="name">' + Views.esc(name) + '</span>' +
-      '<span class="pill">Subscription</span></button>' +
+      '<span class="pill">' + L('subscription') + '</span></button>' +
       extra +
-      '<div class="actions" style="margin-top:10px"><button class="btn danger" id="de">Detach</button></div>';
+      '<div class="actions" style="margin-top:10px"><button class="btn danger" id="de">' + L('detach') + '</button></div>';
     root.querySelector('.item').addEventListener('click', function () { openCard(url, parentId); });
     document.getElementById('de').addEventListener('click', function () { Epic.detach(t, cardId).then(render); });
     fit();
@@ -922,5 +937,6 @@
     clearTimeout(renderTimer);
     renderTimer = setTimeout(function () { if (!busy) render(); }, 120);
   });
-  render();
+  // Load the viewer's language (Trello locale or saved override) before the first paint.
+  Epic.loadMessages(t).then(render, render);
 })();

@@ -29,14 +29,14 @@
   TrelloPowerUp.initialize({
     // ---- card buttons ----
     'card-buttons': function (t) {
-      return t.card('id').then(function (c) {
+      return Epic.loadMessages(t).then(function () { return t.card('id'); }).then(function (c) {
         var cardId = c.id;
         return Promise.all([Epic.isSubscription(t, cardId), Epic.getParent(t, cardId), isAuthorizedSafe(t)]).then(function (rr) {
           var isSub = rr[0], parent = rr[1], authed = rr[2];
           var buttons = [];
 
           buttons.push({
-            icon: ICON, text: isSub ? 'Unmark Subscription' : 'Make Subscription',
+            icon: ICON, text: Epic.L(isSub ? 'unmark_subscription' : 'make_subscription'),
             callback: function (t) {
               return t.card('id').then(function (c) {
                 return isSub ? Epic.unmakeSubscription(t, c.id) : Epic.makeSubscription(t, c.id);
@@ -46,20 +46,20 @@
 
           if (isSub) {
             buttons.push({
-              icon: ICON, text: 'Add Sub-task',
-              callback: function (t) { return t.popup({ title: 'Add Sub-task', url: url('views/create-subtask.html'), height: 300 }); },
+              icon: ICON, text: Epic.L('add_subtask'),
+              callback: function (t) { return t.popup({ title: Epic.L('add_subtask'), url: url('views/create-subtask.html'), height: 300 }); },
             });
           }
 
           buttons.push({
-            icon: ICON, text: parent ? 'Change parent' : 'Attach to Subscription',
-            callback: function (t) { return t.popup({ title: 'Choose Subscription', url: url('views/choose-parent.html'), height: 300 }); },
+            icon: ICON, text: Epic.L(parent ? 'change_parent' : 'attach_to_subscription'),
+            callback: function (t) { return t.popup({ title: Epic.L('choose_subscription_title'), url: url('views/choose-parent.html'), height: 300 }); },
           });
 
           if (!authed) {
             buttons.push({
-              icon: ICON, text: 'Authorize Duck Epics',
-              callback: function (t) { return t.popup({ title: 'Authorize Duck Epics', url: url('views/authorize.html'), height: 160 }); },
+              icon: ICON, text: Epic.L('authorize_duck'),
+              callback: function (t) { return t.popup({ title: Epic.L('authorize_duck'), url: url('views/authorize.html'), height: 160 }); },
             });
           }
           return buttons;
@@ -69,12 +69,12 @@
 
     // ---- badge on the closed card ----
     'card-badges': function (t) {
-      return t.card('id').then(function (c) {
+      return Epic.loadMessages(t).then(function () { return t.card('id'); }).then(function (c) {
         return Epic.isSubscription(t, c.id).then(function (isSub) {
           if (isSub) {
             return Promise.all([statsFor(t, c.id), Epic.getIcon(t, c.id)]).then(function (rr) {
               var s = rr[0], icon = rr[1];
-              var text = s.total ? (icon + ' ' + s.done + '/' + s.total + ' done') : icon;
+              var text = s.total ? (icon + ' ' + s.done + '/' + s.total + ' ' + Epic.L('done')) : icon;
               // Trello has no true-dark badge; use a bold valid color so it stands out
               // (green when fully done, blue while in progress).
               return [{ text: text, color: (s.total && s.done === s.total) ? 'green' : 'blue' }];
@@ -89,8 +89,8 @@
               // Not denormalized yet — fall back to the client-cached board cards for the name.
               return t.cards('id', 'name').then(function (cs) {
                 var pc = cs.filter(function (x) { return x.id === p; })[0];
-                return [{ text: (b.icon ? b.icon + ' ' : '') + (pc ? pc.name : 'Subscription') }];
-              }).catch(function () { return [{ text: (b.icon ? b.icon + ' ' : '') + 'Subscription' }]; });
+                return [{ text: (b.icon ? b.icon + ' ' : '') + (pc ? pc.name : Epic.L('subscription')) }];
+              }).catch(function () { return [{ text: (b.icon ? b.icon + ' ' : '') + Epic.L('subscription') }]; });
             });
           });
         });
@@ -99,11 +99,11 @@
 
     // ---- badge on the open card detail ----
     'card-detail-badges': function (t) {
-      return t.card('id').then(function (c) {
+      return Epic.loadMessages(t).then(function () { return t.card('id'); }).then(function (c) {
         return Epic.isSubscription(t, c.id).then(function (isSub) {
           if (!isSub) return [];
           return statsFor(t, c.id).then(function (s) {
-            return [{ title: 'Sub-tasks', text: s.done + '/' + s.total + ' done', color: s.total && s.done === s.total ? 'green' : 'light-gray' }];
+            return [{ title: Epic.L('subtasks'), text: s.done + '/' + s.total + ' ' + Epic.L('done'), color: s.total && s.done === s.total ? 'green' : 'light-gray' }];
           });
         });
       }).catch(function () { return []; });
@@ -118,7 +118,7 @@
         return {
           title: 'Duck Epics',
           icon: ICON,
-          content: { type: 'iframe', url: t.signUrl(url('views/section.html?v=74&c=' + c.id)), height: 200 },
+          content: { type: 'iframe', url: t.signUrl(url('views/section.html?v=75&c=' + c.id)), height: 200 },
         };
       });
     },
@@ -128,7 +128,9 @@
       return t.getRestApi().isAuthorized().then(function (authed) { return { authorized: authed }; });
     },
     'show-authorization': function (t) {
-      return t.popup({ title: 'Authorize Duck Epics', url: url('views/authorize.html'), height: 160 });
+      return Epic.loadMessages(t).then(function () {
+        return t.popup({ title: Epic.L('authorize_duck'), url: url('views/authorize.html'), height: 160 });
+      });
     },
   }, {
     appKey: Epic.APP_KEY,
