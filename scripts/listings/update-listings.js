@@ -25,6 +25,26 @@
   var G3 = GIF_BASE + 'duck-epics-status-done.gif';
   function expand(md) { return md.split('{G1}').join(G1).split('{G2}').join(G2).split('{G3}').join(G3); }
 
+  var FREE_MAP = (typeof FREE !== 'undefined') ? FREE : {};
+  var AGILE_MAP = (typeof AGILE !== 'undefined') ? AGILE : {};
+  // Overview → "🆓 <localized Free> — …", idempotent and capped at 128 chars.
+  function withFree(loc, overview) {
+    var word = FREE_MAP[loc] || 'Free';
+    var base = (overview || '').replace(/^🆓[^—]*—\s*/, '').trim();
+    var pfx = '🆓 ' + word + ' — ';
+    var out = pfx + base;
+    if (out.length > 128) out = pfx + base.slice(0, Math.max(0, 127 - pfx.length)).replace(/\s+\S*$/, '') + '…';
+    return out;
+  }
+  // Description → insert the Agile/Scrum/Kanban paragraph before the "---" footer, once.
+  function withAgile(loc, description) {
+    var block = AGILE_MAP[loc] || AGILE_MAP['en-US'] || '';
+    if (!block || description.indexOf(block) >= 0) return description;
+    var idx = description.lastIndexOf('\n---');
+    return idx >= 0 ? (description.slice(0, idx) + '\n' + block + '\n' + description.slice(idx))
+                    : (description + '\n\n' + block);
+  }
+
   var current = await fetch('/1/plugins/' + PLUGIN_ID + '?listings=true&_=' + Date.now(), { headers: { Accept: 'application/json' } }).then(function (r) { return r.json(); });
   var byLocale = {};
   (current.listings || []).forEach(function (l) { byLocale[l.locale] = l; });
@@ -39,8 +59,8 @@
     var body = new URLSearchParams();
     body.set('name', NAME);
     body.set('locale', loc);
-    body.set('overview', item.overview);
-    body.set('description', expand(item.description));
+    body.set('overview', withFree(loc, item.overview));
+    body.set('description', withAgile(loc, expand(item.description)));
     body.set('dsc', dsc);
     var existing = byLocale[loc];
     var url = existing ? ('/1/plugins/' + PLUGIN_ID + '/listings/' + existing.id) : ('/1/plugins/' + PLUGIN_ID + '/listings');

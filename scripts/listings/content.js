@@ -100,4 +100,45 @@ Duck Epics превращает любую карточку Trello в **Подп
    two masters above (localized text + the same 3 GIFs + "free" line + Duck.design footer).
    They are appended in content.extra.js to keep this file readable. Load both when pushing. */
 
-if (typeof module !== 'undefined' && module.exports) module.exports = { NAME, GIF_BASE, LISTINGS };
+// ---------------------------------------------------------------------------
+// Applied to EVERY locale by the updater (so a rule changes once, everywhere):
+//   • overview  → prefixed with "🆓 <localized Free> — " (capped at 128 chars).
+//   • description → an Agile/Scrum/Kanban PM paragraph inserted before the
+//     "---" footer, for keyword discoverability ("scrum", "kanban", "backlog"…).
+// Both are idempotent (see update-listings.js): re-running never double-applies.
+// ---------------------------------------------------------------------------
+var FREE = {
+  'en-US': 'Free', 'en-GB': 'Free', 'en-AU': 'Free', 'ru': 'Бесплатно', 'es': 'Gratis',
+  'de': 'Kostenlos', 'fr': 'Gratuit', 'fr-CA': 'Gratuit', 'pt-BR': 'Grátis', 'it': 'Gratis',
+  'nl': 'Gratis', 'pl': 'Za darmo', 'uk': 'Безкоштовно', 'sv': 'Gratis', 'nb': 'Gratis',
+  'fi': 'Ilmainen', 'cs': 'Zdarma', 'hu': 'Ingyenes', 'tr': 'Ücretsiz', 'ja': '無料',
+  'th': 'ฟรี', 'vi': 'Miễn phí', 'zh-Hans': '免费', 'zh-Hant': '免費',
+};
+var AGILE = {
+  'en-US': '**Agile, Scrum & Kanban** — run sprints or a Kanban flow, manage your backlog, epics and user stories, and see progress roll up in real time.',
+  'en-GB': '**Agile, Scrum & Kanban** — run sprints or a Kanban flow, manage your backlog, epics and user stories, and see progress roll up in real time.',
+  'en-AU': '**Agile, Scrum & Kanban** — run sprints or a Kanban flow, manage your backlog, epics and user stories, and see progress roll up in real time.',
+  'ru': '**Agile, Scrum и Kanban** — ведите спринты или поток Канбан, управляйте бэклогом, эпиками и пользовательскими историями, а прогресс обновляется в реальном времени.',
+  'es': '**Agile, Scrum y Kanban** — ejecuta sprints o un flujo Kanban, gestiona tu backlog, épicas e historias de usuario, y ve el progreso en tiempo real.',
+  'de': '**Agile, Scrum & Kanban** — arbeite in Sprints oder im Kanban-Fluss, verwalte Backlog, Epics und User Stories und verfolge den Fortschritt in Echtzeit.',
+  'fr': '**Agile, Scrum et Kanban** — menez des sprints ou un flux Kanban, gérez votre backlog, vos epics et user stories, et suivez la progression en temps réel.',
+  'fr-CA': '**Agile, Scrum et Kanban** — menez des sprints ou un flux Kanban, gérez votre backlog, vos epics et user stories, et suivez la progression en temps réel.',
+  'pt-BR': '**Agile, Scrum e Kanban** — faça sprints ou um fluxo Kanban, gerencie seu backlog, épicos e histórias de usuário, e acompanhe o progresso em tempo real.',
+  'it': '**Agile, Scrum e Kanban** — gestisci sprint o un flusso Kanban, il tuo backlog, epiche e user story, e monitora i progressi in tempo reale.',
+  'nl': '**Agile, Scrum & Kanban** — werk in sprints of een Kanban-flow, beheer je backlog, epics en user stories en volg de voortgang in realtime.',
+  'pl': '**Agile, Scrum i Kanban** — prowadź sprinty lub przepływ Kanban, zarządzaj backlogiem, epikami i historyjkami użytkownika i śledź postęp na bieżąco.',
+  'uk': '**Agile, Scrum і Kanban** — ведіть спринти або потік Канбан, керуйте беклогом, епіками та користувацькими історіями, а прогрес оновлюється в реальному часі.',
+  'sv': '**Agile, Scrum & Kanban** — kör sprintar eller ett Kanban-flöde, hantera din backlog, epics och user stories och följ framsteg i realtid.',
+  'nb': '**Agile, Scrum & Kanban** — kjør sprinter eller en Kanban-flyt, håndter backlog, epics og brukerhistorier, og følg fremdriften i sanntid.',
+  'fi': '**Agile, Scrum ja Kanban** — vedä sprinttejä tai Kanban-virtausta, hallitse backlogia, epicejä ja käyttäjätarinoita ja seuraa edistymistä reaaliajassa.',
+  'cs': '**Agile, Scrum a Kanban** — veďte sprinty nebo Kanban tok, spravujte backlog, epiky a uživatelské příběhy a sledujte průběh v reálném čase.',
+  'hu': '**Agile, Scrum és Kanban** — futtass sprinteket vagy Kanban-folyamatot, kezeld a backlogot, epikeket és felhasználói történeteket, és kövesd a haladást valós időben.',
+  'tr': '**Agile, Scrum ve Kanban** — sprint’ler veya Kanban akışı yürütün, backlog’unuzu, epic’leri ve kullanıcı hikayelerini yönetin, ilerlemeyi gerçek zamanlı görün.',
+  'ja': '**アジャイル・スクラム・カンバン** — スプリントやカンバンで、バックログ・エピック・ユーザーストーリーを管理し、進捗をリアルタイムで確認できます。',
+  'th': '**Agile, Scrum และ Kanban** — ทำงานแบบสปรินต์หรือโฟลว์ Kanban จัดการ backlog, epic และ user story พร้อมดูความคืบหน้าแบบเรียลไทม์',
+  'vi': '**Agile, Scrum và Kanban** — chạy sprint hoặc luồng Kanban, quản lý backlog, epic và user story, theo dõi tiến độ theo thời gian thực.',
+  'zh-Hans': '**敏捷、Scrum 与看板（Kanban）** — 运行冲刺或看板流程，管理待办列表（backlog）、史诗（epic）和用户故事，实时查看进度。',
+  'zh-Hant': '**敏捷、Scrum 與看板（Kanban）** — 執行衝刺或看板流程，管理待辦清單（backlog）、史詩（epic）與使用者故事，即時查看進度。',
+};
+
+if (typeof module !== 'undefined' && module.exports) module.exports = { NAME, GIF_BASE, LISTINGS, FREE, AGILE };
