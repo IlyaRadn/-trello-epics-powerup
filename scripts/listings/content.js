@@ -141,4 +141,34 @@ var AGILE = {
   'zh-Hant': '**敏捷、Scrum 與看板（Kanban）** — 執行衝刺或看板流程，管理待辦清單（backlog）、史詩（epic）與使用者故事，即時查看進度。',
 };
 
-if (typeof module !== 'undefined' && module.exports) module.exports = { NAME, GIF_BASE, LISTINGS, FREE, AGILE };
+// Keyword-rich "Also works as" line inserted before the footer on every locale
+// (discoverability for: subtasks, WBS, epic/user-story tracker, project/task
+// tracker, card relationships…). Honest synonyms only — no features we lack.
+var KEYWORDS = {
+  'en-US': '**Also works as:** a subtasks manager, parent-child card hierarchy, work breakdown structure (WBS), epic & user-story tracker, project & task tracker, and a way to group, link and roll up related cards — for agencies, product and dev teams.',
+  'en-GB': '**Also works as:** a subtasks manager, parent-child card hierarchy, work breakdown structure (WBS), epic & user-story tracker, project & task tracker, and a way to group, link and roll up related cards — for agencies, product and dev teams.',
+  'en-AU': '**Also works as:** a subtasks manager, parent-child card hierarchy, work breakdown structure (WBS), epic & user-story tracker, project & task tracker, and a way to group, link and roll up related cards — for agencies, product and dev teams.',
+  'ru': '**Также подходит как:** менеджер подзадач (subtasks), иерархия карточек родитель-потомок, work breakdown structure (WBS), трекер эпиков (epics) и user story, трекер проектов и задач, инструмент для группировки и связывания карточек — для агентств, продуктовых и dev-команд.',
+  'es': '**También sirve como:** gestor de subtareas (subtasks), jerarquía de tarjetas padre-hijo, estructura de desglose del trabajo (WBS), seguimiento de epics y user stories, gestor de proyectos y tareas, y para agrupar y enlazar tarjetas relacionadas — para agencias, equipos de producto y desarrollo.',
+  'de': '**Funktioniert auch als:** Subtask-Manager, Eltern-Kind-Kartenhierarchie, Projektstrukturplan (WBS), Epic- und User-Story-Tracker, Projekt- und Aufgaben-Tracker sowie zum Gruppieren und Verknüpfen zusammengehöriger Karten — für Agenturen, Produkt- und Dev-Teams.',
+  'fr': '**Fonctionne aussi comme :** gestionnaire de sous-tâches (subtasks), hiérarchie de cartes parent-enfant, organigramme des tâches (WBS), suivi d’epics et user stories, suivi de projets et tâches, et pour regrouper et lier des cartes liées — pour agences, équipes produit et dev.',
+  'fr-CA': '**Fonctionne aussi comme :** gestionnaire de sous-tâches (subtasks), hiérarchie de cartes parent-enfant, organigramme des tâches (WBS), suivi d’epics et user stories, suivi de projets et tâches, et pour regrouper et lier des cartes liées — pour agences, équipes produit et dev.',
+  'pt-BR': '**Também funciona como:** gerenciador de subtarefas (subtasks), hierarquia de cartões pai-filho, estrutura analítica do projeto (WBS), acompanhamento de epics e user stories, gestor de projetos e tarefas, e para agrupar e vincular cartões relacionados — para agências, equipes de produto e dev.',
+  'it': '**Funziona anche come:** gestore di sotto-attività (subtasks), gerarchia di schede padre-figlio, work breakdown structure (WBS), tracker di epic e user story, tracker di progetti e attività, e per raggruppare e collegare schede correlate — per agenzie, team di prodotto e sviluppo.',
+  'nl': '**Werkt ook als:** subtaken-manager (subtasks), ouder-kind kaarthiërarchie, work breakdown structure (WBS), epic- en user-story-tracker, project- en taaktracker, en om gerelateerde kaarten te groeperen en te koppelen — voor agencies, product- en dev-teams.',
+  'pl': '**Działa też jako:** menedżer podzadań (subtasks), hierarchia kart rodzic-dziecko, struktura podziału pracy (WBS), śledzenie epików i historyjek użytkownika, tracker projektów i zadań oraz do grupowania i łączenia powiązanych kart — dla agencji, zespołów produktowych i deweloperskich.',
+  'uk': '**Також підходить як:** менеджер підзадач (subtasks), ієрархія карток батько-нащадок, структура декомпозиції робіт (WBS), трекер епіків та user story, трекер проєктів і задач, для групування та звʼязування карток — для агенцій, продуктових і dev-команд.',
+  'sv': '**Fungerar även som:** hanterare av deluppgifter (subtasks), förälder-barn-korthierarki, work breakdown structure (WBS), epic- och user story-spårning, projekt- och uppgiftsspårare, och för att gruppera och länka relaterade kort — för byråer, produkt- och utvecklingsteam.',
+  'nb': '**Fungerer også som:** deloppgave-håndterer (subtasks), forelder-barn-korthierarki, work breakdown structure (WBS), epic- og user story-sporing, prosjekt- og oppgavesporing, og for å gruppere og koble relaterte kort — for byråer, produkt- og utviklingsteam.',
+  'fi': '**Toimii myös:** alitehtävien hallinta (subtasks), vanhempi-lapsi-korttihierarkia, työn ositus (WBS), epic- ja user story -seuranta, projekti- ja tehtäväseuranta sekä korttien ryhmittely ja linkitys — toimistoille, tuote- ja kehitystiimeille.',
+  'cs': '**Funguje také jako:** správce podúkolů (subtasks), hierarchie karet rodič-potomek, struktura rozpadu práce (WBS), sledování epiců a user stories, sledování projektů a úkolů a pro seskupování a propojování souvisejících karet — pro agentury, produktové a vývojové týmy.',
+  'hu': '**Így is használható:** részfeladat-kezelő (subtasks), szülő-gyermek kártyahierarchia, munkalebontási struktúra (WBS), epic- és user story-követés, projekt- és feladatkövető, valamint kártyák csoportosítása és összekapcsolása — ügynökségeknek, termék- és fejlesztőcsapatoknak.',
+  'tr': '**Şu işler için de uygundur:** alt görev (subtasks) yöneticisi, üst-alt kart hiyerarşisi, iş kırılım yapısı (WBS), epic ve user story takibi, proje ve görev takibi, ilgili kartları gruplama ve bağlama — ajanslar, ürün ve geliştirme ekipleri için.',
+  'ja': '**こんな用途にも:** サブタスク（subtasks）管理、親子カード階層、作業分解構成（WBS）、エピック（epic）・ユーザーストーリー管理、プロジェクト・タスク管理、関連カードのグループ化とリンク — 代理店・プロダクト・開発チーム向け。',
+  'th': '**ยังใช้เป็น:** ตัวจัดการงานย่อย (subtasks), ลำดับชั้นการ์ดแบบ parent-child, work breakdown structure (WBS), ติดตาม epic และ user story, ติดตามโปรเจกต์และงาน, จัดกลุ่มและเชื่อมโยงการ์ดที่เกี่ยวข้อง — สำหรับเอเจนซี ทีมผลิตภัณฑ์และทีมพัฒนา',
+  'vi': '**Cũng dùng như:** trình quản lý công việc con (subtasks), phân cấp thẻ cha-con, cấu trúc phân rã công việc (WBS), theo dõi epic và user story, theo dõi dự án và công việc, nhóm và liên kết các thẻ liên quan — cho agency, nhóm sản phẩm và phát triển.',
+  'zh-Hans': '**还可用作：** 子任务（subtasks）管理、父子卡片层级、工作分解结构（WBS）、史诗（epic）与用户故事跟踪、项目与任务跟踪，以及对相关卡片进行分组和关联 — 适合代理机构、产品与开发团队。',
+  'zh-Hant': '**也可用作：** 子任務（subtasks）管理、父子卡片層級、工作分解結構（WBS）、史詩（epic）與使用者故事追蹤、專案與任務追蹤，以及將相關卡片分組與連結 — 適合代理機構、產品與開發團隊。',
+};
+
+if (typeof module !== 'undefined' && module.exports) module.exports = { NAME, GIF_BASE, LISTINGS, FREE, AGILE, KEYWORDS };

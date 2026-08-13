@@ -36,14 +36,17 @@
     if (out.length > 128) out = pfx + base.slice(0, Math.max(0, 127 - pfx.length)).replace(/\s+\S*$/, '') + '…';
     return out;
   }
-  // Description → insert the Agile/Scrum/Kanban paragraph before the "---" footer, once.
-  function withAgile(loc, description) {
-    var block = AGILE_MAP[loc] || AGILE_MAP['en-US'] || '';
+  var KW_MAP = (typeof KEYWORDS !== 'undefined') ? KEYWORDS : {};
+  // Insert a localized paragraph before the "---" footer, once (idempotent).
+  function insertBeforeFooter(description, block) {
     if (!block || description.indexOf(block) >= 0) return description;
     var idx = description.lastIndexOf('\n---');
     return idx >= 0 ? (description.slice(0, idx) + '\n' + block + '\n' + description.slice(idx))
                     : (description + '\n\n' + block);
   }
+  // Description → Agile/Scrum/Kanban paragraph, then the keyword-rich "Also works as" line.
+  function withAgile(loc, description) { return insertBeforeFooter(description, AGILE_MAP[loc] || AGILE_MAP['en-US'] || ''); }
+  function withKeywords(loc, description) { return insertBeforeFooter(description, KW_MAP[loc] || KW_MAP['en-US'] || ''); }
 
   var current = await fetch('/1/plugins/' + PLUGIN_ID + '?listings=true&_=' + Date.now(), { headers: { Accept: 'application/json' } }).then(function (r) { return r.json(); });
   var byLocale = {};
@@ -60,7 +63,7 @@
     body.set('name', NAME);
     body.set('locale', loc);
     body.set('overview', withFree(loc, item.overview));
-    body.set('description', withAgile(loc, expand(item.description)));
+    body.set('description', withKeywords(loc, withAgile(loc, expand(item.description))));
     body.set('dsc', dsc);
     var existing = byLocale[loc];
     var url = existing ? ('/1/plugins/' + PLUGIN_ID + '/listings/' + existing.id) : ('/1/plugins/' + PLUGIN_ID + '/listings');
