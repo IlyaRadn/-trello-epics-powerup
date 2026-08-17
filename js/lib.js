@@ -637,20 +637,44 @@
     // Children list is stored on the SUBSCRIPTION card (its own section). Legacy data lived
     // in board-scoped (optionally sharded) keys — migrate on first read.
     _childKey: function (parentId, i) { return i ? key('children', parentId) + ':' + i : key('children', parentId); },
+    // Board-scope "bridge" list of children — written when a card is attached from the
+    // CHILD's context (the parent's own card scope isn't writable from there). Also holds
+    // pre-card-scope legacy data. getChildren merges + migrates it away.
+    _readLegacyChildren: function (t, parentId) {
+      var reads = [];
+      for (var i = 0; i < 6; i++) reads.push(Epic._get(t, Epic._childKey(parentId, i), []));
+      return Promise.all(reads).then(function (parts) {
+        var out = [], seen = {};
+        parts.forEach(function (a) { (a || []).forEach(function (id) { if (!seen[id]) { seen[id] = 1; out.push(id); } }); });
+        return out;
+      }).catch(function () { return []; });
+    },
+    _clearLegacyChildren: function (t, parentId) {
+      var chain = Promise.resolve();
+      for (var i = 0; i < 6; i++) (function (n) { chain = chain.then(function () { return Epic._remove(t, Epic._childKey(parentId, n)).catch(function () {}); }); })(i);
+      return chain;
+    },
+    // MERGE the parent card's own list with the board-scope bridge (never either/or, so a
+    // child attached from its own context is still visible to the parent). When we CAN write
+    // this card's scope (t is bound to parentId), fold the bridge in and clear it.
     getChildren: function (t, parentId) {
-      return Epic._cget(t, parentId, 'children', null).then(function (arr) {
-        if (arr) return arr;
-        var reads = [];
-        for (var i = 0; i < 6; i++) reads.push(Epic._get(t, Epic._childKey(parentId, i), []));
-        return Promise.all(reads).then(function (parts) {
-          var all = [], seen = {};
-          parts.forEach(function (a) { (a || []).forEach(function (id) { if (!seen[id]) { seen[id] = 1; all.push(id); } }); });
-          if (all.length) {
-            Epic._cset(t, parentId, 'children', all).catch(function () {});
-            for (var i = 0; i < 6; i++) Epic._remove(t, Epic._childKey(parentId, i)).catch(function () {});
-          }
-          return all;
-        });
+      return Promise.all([
+        Epic._cget(t, parentId, 'children', null),
+        Epic._readLegacyChildren(t, parentId)
+      ]).then(function (r) {
+        var card = r[0] || [], legacy = r[1] || [];
+        var seen = {}, all = [];
+        card.forEach(function (id) { if (!seen[id]) { seen[id] = 1; all.push(id); } });
+        legacy.forEach(function (id) { if (!seen[id]) { seen[id] = 1; all.push(id); } });
+        if (!legacy.length) return all;
+        // Fold the bridge into this card's own list and clear it — but ONLY when the
+        // card-scope write succeeds (parent context). Cross-card: the write throws, we
+        // keep the bridge, and the merged list above is already correct. Awaited so the
+        // bridge is cleared promptly (board scope stays lean).
+        return Epic._cset(t, parentId, 'children', all)
+          .then(function () { return Epic._clearLegacyChildren(t, parentId); })
+          .then(function () { return all; })
+          .catch(function () { return all; });
       });
     },
 
@@ -738,12 +762,30 @@
     _pushChild: function (t, parentId, childId) {
       return Epic.getChildren(t, parentId).then(function (arr) {
         if (arr.indexOf(childId) !== -1) return;
-        return Epic._cset(t, parentId, 'children', arr.concat([childId]));
+        // Prefer the parent card's own scope; if we're NOT in the parent's context the write
+        // throws (can't write another card's data) — append to the board-scope bridge instead,
+        // which getChildren merges + migrates when the parent is next opened.
+        return Epic._cset(t, parentId, 'children', arr.concat([childId])).catch(function () {
+          return Epic._get(t, Epic._childKey(parentId, 0), []).then(function (leg) {
+            leg = leg || [];
+            if (leg.indexOf(childId) !== -1) return;
+            return Epic._set(t, Epic._childKey(parentId, 0), leg.concat([childId])).catch(function () {});
+          });
+        });
       });
     },
     _pullChild: function (t, parentId, childId) {
       return Epic.getChildren(t, parentId).then(function (arr) {
-        return Epic._cset(t, parentId, 'children', arr.filter(function (x) { return x !== childId; }));
+        var kept = arr.filter(function (x) { return x !== childId; });
+        // Update the parent's card-scope list when writable; always scrub the board-scope
+        // bridge too (covers the cross-card case where the card scope can't be written here).
+        return Epic._cset(t, parentId, 'children', kept).catch(function () {}).then(function () {
+          return Epic._get(t, Epic._childKey(parentId, 0), []).then(function (leg) {
+            leg = leg || [];
+            if (leg.indexOf(childId) === -1) return;
+            return Epic._set(t, Epic._childKey(parentId, 0), leg.filter(function (x) { return x !== childId; })).catch(function () {});
+          }).catch(function () {});
+        });
       });
     },
     _removeChildren: function (t, parentId) { return Epic._cremove(t, parentId, 'children'); },
