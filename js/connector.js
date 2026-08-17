@@ -20,10 +20,10 @@
     return Epic.computeStats(t, cardId);
   }
 
-  // Never let a REST-auth check break the buttons: default to "authorized".
+  // Authorized == we hold our own OAuth token (duckToken), the same token the
+  // whole app reads. NOT the Trello-managed REST token.
   function isAuthorizedSafe(t) {
-    try { return t.getRestApi().isAuthorized().catch(function () { return true; }); }
-    catch (e) { return Promise.resolve(true); }
+    return Epic.getToken(t).then(function (tok) { return !!tok; }).catch(function () { return false; });
   }
 
   TrelloPowerUp.initialize({
@@ -59,7 +59,7 @@
           if (!authed) {
             buttons.push({
               icon: ICON, text: Epic.L('authorize_duck'),
-              callback: function (t) { return t.popup({ title: Epic.L('authorize_duck'), url: url('views/authorize.html'), height: 160 }); },
+              callback: function (t) { return t.popup({ title: Epic.L('authorize_duck'), url: url('views/authorize.html?v=76'), height: 160 }); },
             });
           }
           return buttons;
@@ -118,18 +118,18 @@
         return {
           title: 'Duck Epics',
           icon: ICON,
-          content: { type: 'iframe', url: t.signUrl(url('views/section.html?v=75&c=' + c.id)), height: 200 },
+          content: { type: 'iframe', url: t.signUrl(url('views/section.html?v=76&c=' + c.id)), height: 200 },
         };
       });
     },
 
     // ---- authorization ----
     'authorization-status': function (t) {
-      return t.getRestApi().isAuthorized().then(function (authed) { return { authorized: authed }; });
+      return Epic.getToken(t).then(function (tok) { return { authorized: !!tok }; }).catch(function () { return { authorized: false }; });
     },
     'show-authorization': function (t) {
       return Epic.loadMessages(t).then(function () {
-        return t.popup({ title: Epic.L('authorize_duck'), url: url('views/authorize.html'), height: 160 });
+        return t.popup({ title: Epic.L('authorize_duck'), url: url('views/authorize.html?v=76'), height: 160 });
       });
     },
   }, {

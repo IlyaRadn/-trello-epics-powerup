@@ -81,6 +81,8 @@
     authorize: 'Authorize', new_subtask_name: 'New sub-task name', column: 'Column', due_date: 'Due date',
     search_members: 'Search members…', create: 'Create', opening_trello: 'Opening Trello window…',
     no_members: 'No members.', creating: 'Creating…', authorize_first: 'Authorize first.',
+    auth_grant: 'Grant Trello access so Duck Epics can count archived cards and create sub-tasks.',
+    authorized_ok: 'Duck Epics is authorized.', close: 'Close', logout: 'Log out',
     link_existing: 'Link existing cards',
     link_existing_hint: 'Click a card to add it as a sub-task. Keep adding, then ← Back.',
     all_columns: 'All columns', sort_new: 'Newest first', sort_act: 'By activity', sort_old: 'Oldest first',
