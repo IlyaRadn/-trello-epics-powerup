@@ -245,20 +245,27 @@
 
     // Board members cache (board-shared pluginData) so avatars/photos load instantly
     // on every card open instead of a REST call per iframe. Refreshed when stale.
-    getMembersCache: function (t) { return Epic._get(t, 'sub:members', null); },
-    // Cache ONLY avatar URLs (id->url) — small, well under the pluginData size limit.
+    getMembersCache: function (t) {
+      return Promise.resolve().then(function () { return t.get('member', 'private', 'sub:members'); }).catch(function () { return null; });
+    },
+    // Cache ONLY avatar URLs (id->url). Stored MEMBER-PRIVATE, not board-shared: a
+    // board-shared cache (up to ~5 KB of avatar URLs) saturated the board's single
+    // 8192-byte pluginData blob, after which EVERY other board-scoped write failed
+    // silently — including the child→parent link's cross-card fallback, so sub-tasks
+    // lost their parent. Member-private storage has its own separate budget.
     // Returns the full member map for the caller; caching is best-effort/non-blocking.
     refreshMembers: function (t, boardId) {
       return Epic.fetchMembers(t, boardId).then(function (map) {
         map = map || {};
         var avatars = {};
         Object.keys(map).forEach(function (id) { if (map[id].avatarUrl) avatars[id] = map[id].avatarUrl; });
-        // Only cache if it stays comfortably under the 8192-char pluginData key limit
-        // (big boards can have enough members that the avatar map would overflow).
         var payload = { ts: Date.now(), avatars: avatars };
-        if (Object.keys(avatars).length && JSON.stringify(payload).length < 7000) {
-          Epic._set(t, 'sub:members', payload).catch(function () {});
+        if (Object.keys(avatars).length && JSON.stringify(payload).length < 6000) {
+          Promise.resolve().then(function () { return t.set('member', 'private', 'sub:members', payload); }).catch(function () {});
         }
+        // One-time reclaim: drop the old board-shared cache to free ~5 KB on existing
+        // boards, so the saturated board blob has room again for links/index/config.
+        Epic._remove(t, 'sub:members').catch(function () {});
         return map;
       });
     },
