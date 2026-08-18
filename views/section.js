@@ -10,9 +10,13 @@
  */
 (function () {
   var t = TrelloPowerUp.iframe({ appKey: Epic.APP_KEY, appName: Epic.APP_NAME });
-  var VERSION = 'v78'; // shown in the unlinked view to confirm which connector version is loaded
+  var VERSION = 'v79'; // shown in the unlinked view to confirm which connector version is loaded
   function L(k) { return Epic.L(k); }              // localized string
   function LF(k, p) { return Epic.fmt(k, p); }     // localized string with {placeholders}
+  // Match the page's lang to the active UI language so the browser's NATIVE controls
+  // (notably <input type=date>: "mm/dd/yyyy" vs "дд.мм.гггг") follow the tool's language
+  // instead of the hardcoded page lang.
+  function applyLang() { try { document.documentElement.lang = Epic.activeLocale() || 'en'; } catch (e) {} }
   var root;
   var busy = false;
   var LIMIT = 30;
@@ -599,7 +603,7 @@
       wireBack();
       // Language: apply immediately (reload dict → full re-render in the new language).
       document.getElementById('lang').addEventListener('change', function (e) {
-        Epic.setUiLocale(t, e.target.value).then(render);
+        Epic.setUiLocale(t, e.target.value).then(function () { applyLang(); render(); });
       });
       document.getElementById('save').addEventListener('click', function () {
         var ids = [];
@@ -938,5 +942,5 @@
     renderTimer = setTimeout(function () { if (!busy) render(); }, 120);
   });
   // Load the viewer's language (Trello locale or saved override) before the first paint.
-  Epic.loadMessages(t).then(render, render);
+  Epic.loadMessages(t).then(function () { applyLang(); render(); }, render);
 })();
