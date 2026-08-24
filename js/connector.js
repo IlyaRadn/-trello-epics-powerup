@@ -59,7 +59,7 @@
           if (!authed) {
             buttons.push({
               icon: ICON, text: Epic.L('authorize_duck'),
-              callback: function (t) { return t.popup({ title: Epic.L('authorize_duck'), url: url('views/authorize.html?v=79'), height: 160 }); },
+              callback: function (t) { return t.popup({ title: Epic.L('authorize_duck'), url: url('views/authorize.html?v=80'), height: 160 }); },
             });
           }
           return buttons;
@@ -118,7 +118,7 @@
         return {
           title: 'Duck Epics',
           icon: ICON,
-          content: { type: 'iframe', url: t.signUrl(url('views/section.html?v=79&c=' + c.id)), height: 200 },
+          content: { type: 'iframe', url: t.signUrl(url('views/section.html?v=80&c=' + c.id)), height: 200 },
         };
       });
     },
@@ -129,7 +129,7 @@
     },
     'show-authorization': function (t) {
       return Epic.loadMessages(t).then(function () {
-        return t.popup({ title: Epic.L('authorize_duck'), url: url('views/authorize.html?v=79'), height: 160 });
+        return t.popup({ title: Epic.L('authorize_duck'), url: url('views/authorize.html?v=80'), height: 160 });
       });
     },
   }, {
