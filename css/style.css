@@ -71,7 +71,12 @@ select.move.done { background-color: var(--green-bg); color: var(--green); borde
   padding: 7px 9px; cursor: pointer; font: inherit; color: var(--ink);
 }
 .sub:hover { background: var(--bg); }
-.sub.archived { opacity: .8; }
+/* Archived rows read as "put away": greyed, desaturated, dashed border. */
+.sub.archived { background: #eceef1; border: 1px dashed #c4c9d0; filter: grayscale(.6); opacity: .72; }
+.sub.archived:hover { background: #e6e9ed; }
+.sub.archived .name { color: var(--sub); font-weight: 500; }
+/* keep the Open / Unarchive actions readable despite the row being faded */
+.sub.archived .btn { opacity: .92; }
 /* Rows are a simple LEFT-anchored vertical stack (same scheme as archived rows):
    line 1 = name (+ avatar pinned to the right), line 2 = chips, line 3 = status. */
 .sub .name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
