@@ -10,7 +10,7 @@
  */
 (function () {
   var t = TrelloPowerUp.iframe({ appKey: Epic.APP_KEY, appName: Epic.APP_NAME });
-  var VERSION = 'v81'; // shown in the unlinked view to confirm which connector version is loaded
+  var VERSION = 'v82'; // shown in the unlinked view to confirm which connector version is loaded
   function L(k) { return Epic.L(k); }              // localized string
   function LF(k, p) { return Epic.fmt(k, p); }     // localized string with {placeholders}
   // Match the page's lang to the active UI language so the browser's NATIVE controls
@@ -945,6 +945,11 @@
     clearTimeout(renderTimer);
     renderTimer = setTimeout(function () { if (!busy) render(); }, 120);
   });
-  // Load the viewer's language (Trello locale or saved override) before the first paint.
-  Epic.loadMessages(t).then(function () { applyLang(); render(); }, render);
+  // Paint as soon as the language is ready — but NEVER leave the section blank. If loading
+  // the language stalls (a slow/stalled fetch of messages/<locale>.json), render anyway after
+  // a short wait (English baseline), then upgrade to the localized text once it arrives.
+  // This is why the section "sometimes disappeared": the first paint was gated on that fetch.
+  var didFirstPaint = false;
+  Epic.loadMessages(t).then(function () { didFirstPaint = true; applyLang(); render(); }, function () { didFirstPaint = true; render(); });
+  setTimeout(function () { if (!didFirstPaint) { applyLang(); render(); } }, 1500);
 })();

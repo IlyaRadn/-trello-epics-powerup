@@ -164,14 +164,19 @@
         I18N_LOC = loc;
         if (loc === 'en') { I18N_MSG = null; I18N_LOADED = 'en'; return 'en'; }
         if (I18N_LOADED === loc && I18N_MSG) return loc;
-        return fetch(i18nBase() + 'messages/' + loc + '.json', { headers: { Accept: 'application/json' } })
+        // Never let a stalled network hang the message load — anything gated on
+        // loadMessages (the whole section render, plus connector buttons/badges)
+        // would otherwise hang forever, leaving the section blank ("Duck Epics
+        // sometimes disappears"). Time out to the English baseline after 3s.
+        var timeout = new Promise(function (res) { setTimeout(function () { res(null); }, 3000); });
+        var req = fetch(i18nBase() + 'messages/' + loc + '.json', { headers: { Accept: 'application/json' } })
           .then(function (r) { return r.ok ? r.json() : null; })
-          .then(function (j) {
-            if (j) { I18N_MSG = j; I18N_LOADED = loc; }
-            else { I18N_MSG = null; I18N_LOADED = 'en'; I18N_LOC = 'en'; }
-            return I18N_LOC;
-          })
-          .catch(function () { I18N_MSG = null; I18N_LOADED = 'en'; I18N_LOC = 'en'; return 'en'; });
+          .catch(function () { return null; });
+        return Promise.race([req, timeout]).then(function (j) {
+          if (j) { I18N_MSG = j; I18N_LOADED = loc; }
+          else { I18N_MSG = null; I18N_LOADED = 'en'; I18N_LOC = 'en'; }
+          return I18N_LOC;
+        });
       });
     },
     // Save (or clear) the language override, then reload the active dict.
